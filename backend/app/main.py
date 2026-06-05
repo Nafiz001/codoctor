@@ -12,11 +12,20 @@ Interactive docs at http://localhost:8000/docs
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .models import ChildAssessment, MedicationCheck, RagQuery, ConsultRequest
+from .models import (
+    ChildAssessment,
+    MedicationCheck,
+    RagQuery,
+    ConsultRequest,
+    FuseRequest,
+    FromTranscriptRequest,
+)
 from .safety.imci import classify_ari
 from .safety.medsafety import check_medication
 from .rag.retriever import HybridRetriever
 from .agents.graph import run_consultation
+from .asr.fusion import fuse, transcript_text
+from .asr.scribe import extract
 
 RETRIEVER = HybridRetriever()
 
@@ -51,6 +60,8 @@ def root() -> dict:
             "/assess/medication",
             "/rag/search",
             "/consult/analyze",
+            "/transcript/fuse",
+            "/consult/from-transcript",
             "/docs",
         ],
     }
@@ -97,3 +108,35 @@ def rag_search(q: RagQuery) -> dict:
 def consult_analyze(req: ConsultRequest) -> dict:
     """Run the full agentic RAG orchestrator (retrieve → tools → critic → synthesize)."""
     return run_consultation(req.patient.model_dump(), req.encounter.model_dump())
+
+
+@app.post("/transcript/fuse", tags=["asr"])
+def transcript_fuse(req: FuseRequest) -> dict:
+    """Reconcile two device transcripts into one high-confidence transcript."""
+    fused = fuse(
+        [s.model_dump() for s in req.device_a],
+        [s.model_dump() for s in req.device_b],
+    )
+    return {
+        "fused": fused,
+        "segments": len(fused),
+        "recovered_count": sum(1 for s in fused if s["recovered"]),
+    }
+
+
+@app.post("/consult/from-transcript", tags=["asr"])
+def consult_from_transcript(req: FromTranscriptRequest) -> dict:
+    """End-to-end: fuse two device transcripts → extract structure → analyze."""
+    fused = fuse(
+        [s.model_dump() for s in req.device_a],
+        [s.model_dump() for s in req.device_b],
+    )
+    encounter = extract(transcript_text(fused))
+    if req.age_months is not None:
+        encounter["age_months"] = req.age_months
+    analysis = run_consultation(req.patient.model_dump(), encounter)
+    return {
+        "fused_transcript": fused,
+        "extracted_encounter": encounter,
+        "analysis": analysis,
+    }

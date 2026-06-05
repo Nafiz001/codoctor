@@ -86,3 +86,24 @@ class ConsultRequest(BaseModel):
             }
         }
     }
+
+
+class DeviceSegment(BaseModel):
+    t: float = Field(..., description="Seconds into the consultation.")
+    speaker: str = Field(..., description='"doctor" or "patient".')
+    text: str
+    conf: float = Field(1.0, ge=0, le=1, description="ASR confidence 0–1.")
+
+
+class FuseRequest(BaseModel):
+    device_a: list[DeviceSegment]
+    device_b: list[DeviceSegment]
+
+
+class FromTranscriptRequest(BaseModel):
+    """Two raw device transcripts → fuse → extract → analyze."""
+
+    patient: PatientContext = Field(default_factory=PatientContext)
+    device_a: list[DeviceSegment]
+    device_b: list[DeviceSegment]
+    age_months: Optional[int] = Field(None, description="Optional age override.")

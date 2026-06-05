@@ -32,6 +32,8 @@ Interactive API docs: http://localhost:8000/docs
 | POST | `/assess/medication` | Allergy / interaction / duplicate-therapy check |
 | POST | `/rag/search` | Hybrid retrieval over the cited clinical corpus |
 | POST | `/consult/analyze` | Full agentic RAG orchestrator (retrieve → tools → critic → synthesize) |
+| POST | `/transcript/fuse` | Reconcile two device transcripts into one (dual-device fusion) |
+| POST | `/consult/from-transcript` | End-to-end: fuse → Scribe extract → analyze |
 
 ### Example — the demo danger sign
 
@@ -89,9 +91,12 @@ pytest
 
 ## Roadmap
 
-Built so far: the deterministic safety core + the agentic RAG orchestrator. Next:
+Built so far: the deterministic safety core, the agentic RAG orchestrator,
+**dual-device transcript fusion** (`app/asr/fusion.py`), and a **deterministic
+Scribe** extractor (`app/asr/scribe.py`) — all deployed on Render and wired to the
+frontend. Next:
 
-- **Cloud Bengali ASR** ingestion + dual-device transcript fusion
-- Add the remaining specialist agents (Scribe entity-extraction, Differential, Completeness, Patient-Summary)
+- **Cloud Bengali ASR** provider to produce the raw per-device transcripts (the fusion + Scribe around it are done and keyless)
+- Remaining specialist agents (Differential, Completeness) as explicit graph nodes
 - Swap the dense retriever for **BGE-M3**; expand the corpus beyond the ARI golden path
-- Wire the live frontend to these endpoints (it currently runs on a scripted demo) and **deploy** (Render)
+- Clinical validation / co-sign before any real-world use
