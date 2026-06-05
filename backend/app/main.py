@@ -12,9 +12,13 @@ Interactive docs at http://localhost:8000/docs
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .models import ChildAssessment, MedicationCheck
+from .models import ChildAssessment, MedicationCheck, RagQuery, ConsultRequest
 from .safety.imci import classify_ari
 from .safety.medsafety import check_medication
+from .rag.retriever import HybridRetriever
+from .agents.graph import run_consultation
+
+RETRIEVER = HybridRetriever()
 
 app = FastAPI(
     title="Codoctor Safety API",
@@ -41,7 +45,14 @@ def root() -> dict:
         "name": "Codoctor Safety API",
         "status": "ok",
         "advisory": "Deterministic decision support. Not a diagnosis. Confirm with a clinician.",
-        "endpoints": ["/health", "/assess/danger-signs", "/assess/medication", "/docs"],
+        "endpoints": [
+            "/health",
+            "/assess/danger-signs",
+            "/assess/medication",
+            "/rag/search",
+            "/consult/analyze",
+            "/docs",
+        ],
     }
 
 
@@ -74,3 +85,15 @@ def assess_medication(check: MedicationCheck) -> dict:
         "findings": findings,
         "blocked": any(f["severity"] == "critical" for f in findings),
     }
+
+
+@app.post("/rag/search", tags=["rag"])
+def rag_search(q: RagQuery) -> dict:
+    """Hybrid retrieval over the cited clinical corpus."""
+    return {"query": q.query, "results": RETRIEVER.search(q.query, k=q.k)}
+
+
+@app.post("/consult/analyze", tags=["agents"])
+def consult_analyze(req: ConsultRequest) -> dict:
+    """Run the full agentic RAG orchestrator (retrieve → tools → critic → synthesize)."""
+    return run_consultation(req.patient.model_dump(), req.encounter.model_dump())

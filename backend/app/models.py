@@ -44,3 +44,45 @@ class MedicationCheck(BaseModel):
             }
         }
     }
+
+
+class RagQuery(BaseModel):
+    query: str = Field(..., description="A clinical question, in English or Bangla.")
+    k: int = Field(4, ge=1, le=12, description="How many chunks to return.")
+
+
+class Encounter(BaseModel):
+    age_months: int = Field(36, ge=0, le=60)
+    symptoms: list[str] = Field(default_factory=list)
+    vitals: dict = Field(default_factory=dict, description='e.g. {"respiratory_rate": 52, "temp_c": 39.1}')
+    chest_indrawing: bool = False
+    stridor: bool = False
+    general_danger_signs: list[str] = Field(default_factory=list)
+    proposed_meds: list[str] = Field(default_factory=list)
+
+
+class PatientContext(BaseModel):
+    allergies: list[str] = Field(default_factory=list)
+    current_meds: list[str] = Field(default_factory=list)
+
+
+class ConsultRequest(BaseModel):
+    """Full input to the agentic orchestrator."""
+
+    patient: PatientContext = Field(default_factory=PatientContext)
+    encounter: Encounter
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "patient": {"allergies": ["Penicillin"], "current_meds": ["Salbutamol"]},
+                "encounter": {
+                    "age_months": 36,
+                    "symptoms": ["fever", "cough"],
+                    "vitals": {"respiratory_rate": 52, "temp_c": 39.1},
+                    "chest_indrawing": True,
+                    "proposed_meds": ["Amoxicillin"],
+                },
+            }
+        }
+    }
