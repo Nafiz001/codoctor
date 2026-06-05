@@ -23,6 +23,8 @@ import {
   Activity,
   Sparkles,
   Languages,
+  Cloud,
+  CloudOff,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { TONES } from "@/components/tone";
@@ -38,15 +40,32 @@ import {
   type AgentEvent,
   type TranscriptLine,
 } from "@/lib/demo-data";
+import { analyzeConsultation, API_URL, type ConsultResult } from "@/lib/api";
 
 const LAST = TRANSCRIPT[TRANSCRIPT.length - 1].id;
 const STEP_MS = 2000;
+
+// The same case the scripted consultation walks through — sent to the live backend.
+const LIVE_PAYLOAD = {
+  patient: { allergies: ["Penicillin"], current_meds: ["Salbutamol"] },
+  encounter: {
+    age_months: 36,
+    symptoms: ["fever", "cough"],
+    vitals: { respiratory_rate: 52 },
+    chest_indrawing: true,
+    proposed_meds: ["Amoxicillin"],
+  },
+};
 
 export default function DoctorPage() {
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [qrUrl, setQrUrl] = useState("/patient");
+  const [live, setLive] = useState<ConsultResult | null>(null);
+  const [liveState, setLiveState] = useState<"idle" | "loading" | "live" | "demo">(
+    "idle"
+  );
 
   const done = cursor >= LAST;
 
@@ -68,10 +87,26 @@ export default function DoctorPage() {
     if (cursor >= LAST) setPlaying(false);
   }, [cursor]);
 
+  // When the consultation finishes, call the live backend (falls back to demo).
+  useEffect(() => {
+    if (!done || liveState !== "idle") return;
+    setLiveState("loading");
+    analyzeConsultation(LIVE_PAYLOAD).then((res) => {
+      if (res) {
+        setLive(res);
+        setLiveState("live");
+      } else {
+        setLiveState("demo");
+      }
+    });
+  }, [done, liveState]);
+
   const onPrimary = () => {
     if (done) {
       setCursor(0);
       setConfirmed(false);
+      setLive(null);
+      setLiveState("idle");
       setPlaying(true);
       return;
     }
@@ -85,6 +120,20 @@ export default function DoctorPage() {
     setPlaying(false);
     setCursor(0);
     setConfirmed(false);
+    setLive(null);
+    setLiveState("idle");
+  };
+
+  const runLive = () => {
+    setLiveState("loading");
+    analyzeConsultation(LIVE_PAYLOAD).then((res) => {
+      if (res) {
+        setLive(res);
+        setLiveState("live");
+      } else {
+        setLiveState("demo");
+      }
+    });
   };
 
   const lines = TRANSCRIPT.filter((l) => l.id <= cursor);
@@ -182,6 +231,9 @@ export default function DoctorPage() {
           <ReasoningPanel events={events} empty={cursor === 0} />
           {done && (
             <SoapCard confirmed={confirmed} onConfirm={() => setConfirmed(true)} />
+          )}
+          {done && (
+            <LiveAnalysisCard state={liveState} result={live} onRetry={runLive} />
           )}
         </section>
       </div>
@@ -607,6 +659,103 @@ function SoapRow({ k, children }: { k: string; children: React.ReactNode }) {
         {k}
       </dt>
       <dd className="text-ink-soft">{children}</dd>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------- live backend card */
+
+function LiveAnalysisCard({
+  state,
+  result,
+  onRetry,
+}: {
+  state: "idle" | "loading" | "live" | "demo";
+  result: ConsultResult | null;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="card animate-fade-up p-5">
+      <div className="flex items-center gap-2">
+        <Sparkles className="h-4 w-4 text-brand-500" />
+        <span className="font-semibold text-ink">Live agent analysis</span>
+        {state === "live" ? (
+          <span className="chip ml-auto bg-emerald-50 text-emerald-700 ring-emerald-200">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Live backend
+          </span>
+        ) : state === "loading" ? (
+          <span className="chip ml-auto bg-slate-100 text-ink-muted ring-slate-200">
+            <Loader2 className="h-3 w-3 animate-spin" /> Connecting
+          </span>
+        ) : (
+          <span className="chip ml-auto bg-amber-50 text-amber-700 ring-amber-200">
+            <CloudOff className="h-3 w-3" /> Scripted demo
+          </span>
+        )}
+      </div>
+
+      {state === "loading" && (
+        <p className="mt-3 text-sm text-ink-muted">
+          Contacting the Codoctor backend… a sleeping free-tier server can take ~30s
+          to wake.
+        </p>
+      )}
+
+      {state === "live" && result && (
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <span className="chip bg-emerald-50 text-emerald-700 ring-emerald-200">
+              <CheckCircle2 className="h-3 w-3" />
+              {result.grounded ? "grounded" : "ungrounded"}
+            </span>
+            <span className="chip bg-brand-50 text-brand-700 ring-brand-200">
+              {result.retrieval_passes} retrieval pass
+              {result.retrieval_passes === 1 ? "" : "es"}
+            </span>
+            {result.llm_narration && (
+              <span className="chip bg-slate-100 text-ink-muted ring-slate-200">
+                LLM narration
+              </span>
+            )}
+          </div>
+          <p className="bn rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-ink-soft ring-1 ring-inset ring-slate-200">
+            {result.answer_bn}
+          </p>
+          <p className="text-xs leading-relaxed text-ink-muted">{result.answer_en}</p>
+          {result.citations.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {result.citations.map((c, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[10px] font-medium text-ink-muted ring-1 ring-inset ring-slate-200"
+                >
+                  <ScrollText className="h-3 w-3 text-brand-500" />
+                  {c.source} · {c.ref}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] text-ink-faint">
+            Returned live by the deployed orchestrator (retrieve → tools → critic →
+            synthesize).
+          </p>
+        </div>
+      )}
+
+      {state === "demo" && (
+        <div className="mt-3 space-y-3">
+          <p className="text-sm text-ink-muted">
+            {API_URL
+              ? "Couldn't reach the live backend — the cards above are the scripted demo. The free-tier server may be asleep."
+              : "Backend not connected — the cards above are the scripted demo. Set NEXT_PUBLIC_API_URL to call the live agents."}
+          </p>
+          {API_URL && (
+            <button onClick={onRetry} className="btn-secondary">
+              <Cloud className="h-4 w-4" /> Retry live backend
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
