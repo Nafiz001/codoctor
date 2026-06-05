@@ -1,14 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Noto_Sans_Bengali } from "next/font/google";
+import { Fraunces, Hanken_Grotesk, Hind_Siliguri } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+// Warm serif display — gives headlines real character (not the AI-default sans).
+const fraunces = Fraunces({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-fraunces",
   display: "swap",
 });
 
-const bangla = Noto_Sans_Bengali({
+// Friendly humanist sans for UI/body.
+const hanken = Hanken_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-hanken",
+  display: "swap",
+});
+
+const bangla = Hind_Siliguri({
   subsets: ["bengali"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-bangla",
@@ -17,11 +25,11 @@ const bangla = Noto_Sans_Bengali({
 
 export const metadata: Metadata = {
   title: {
-    default: "Codoctor — ambient Bangla clinical co-pilot",
+    default: "Codoctor — a second pair of ears in every consultation",
     template: "%s · Codoctor",
   },
   description:
-    "A second pair of ears in every consultation. Codoctor listens, cross-checks against official clinical guidelines with citations, and makes sure no danger sign is missed — built for Bangladesh's overloaded OPDs.",
+    "An ambient Bangla clinical co-pilot for Bangladesh's overloaded OPDs. Codoctor listens, cross-checks official clinical guidelines with citations, and makes sure no danger sign is missed.",
   keywords: [
     "Codoctor",
     "clinical AI",
@@ -32,9 +40,9 @@ export const metadata: Metadata = {
     "healthcare Bangladesh",
     "ambient clinical scribe",
   ],
-  authors: [{ name: "Codoctor" }],
+  authors: [{ name: "Team Logarithm" }],
   openGraph: {
-    title: "Codoctor — ambient Bangla clinical co-pilot",
+    title: "Codoctor — a second pair of ears in every consultation",
     description:
       "Listens to the consultation, cross-checks official guidelines with citations, and makes sure no danger sign is missed.",
     type: "website",
@@ -42,7 +50,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0d9488",
+  themeColor: "#FBF7F0",
   width: "device-width",
   initialScale: 1,
 };
@@ -53,7 +61,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${bangla.variable}`}>
+    <html
+      lang="en"
+      className={`${fraunces.variable} ${hanken.variable} ${bangla.variable}`}
+    >
       <body className="min-h-screen font-sans">{children}</body>
     </html>
   );

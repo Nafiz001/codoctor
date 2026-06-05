@@ -11,27 +11,18 @@
     -webkit-text-size-adjust: 100%;
   }
   body {
-    @apply bg-slate-50 text-ink antialiased;
-    background-image: radial-gradient(
-        55rem 55rem at 50% -22rem,
-        rgba(13, 148, 136, 0.1),
-        transparent 60%
-      ),
-      radial-gradient(
-        40rem 40rem at 100% 0%,
-        rgba(45, 212, 191, 0.08),
-        transparent 55%
-      );
-    background-attachment: fixed;
+    @apply bg-paper text-ink antialiased;
+    font-feature-settings: "ss01", "cv01";
   }
   ::selection {
-    @apply bg-brand-200/70 text-brand-950;
+    @apply bg-brand-200 text-brand-900;
   }
+  /* Warm serif display for the big headings — the brand's voice. */
   h1,
-  h2,
-  h3,
-  h4 {
-    @apply tracking-[-0.02em];
+  h2 {
+    font-family: var(--font-fraunces);
+    font-weight: 500;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -39,35 +30,43 @@
   .container-page {
     @apply mx-auto w-full max-w-6xl px-5 sm:px-8;
   }
+  .font-display {
+    font-family: var(--font-fraunces);
+  }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper disabled:pointer-events-none disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white shadow-soft hover:bg-brand-700 hover:shadow-card active:translate-y-px;
+    @apply btn bg-brand-600 text-white shadow-soft hover:bg-brand-700 active:translate-y-px;
   }
   .btn-secondary {
-    @apply btn bg-white text-ink-soft shadow-soft ring-1 ring-slate-200 hover:text-brand-700 hover:ring-brand-300;
+    @apply btn bg-white text-ink-soft ring-1 ring-slate-200 hover:ring-brand-300 hover:text-brand-700;
   }
   .btn-ghost {
     @apply btn text-ink-muted hover:bg-brand-50 hover:text-brand-700;
   }
   .card {
-    @apply rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/80;
+    @apply rounded-2xl ring-1 ring-slate-200 shadow-soft;
+    background-color: #fffcf7;
   }
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset;
   }
+  .eyebrow {
+    @apply inline-flex items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-brand-600;
+  }
   .input {
     @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-ink outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20;
-  }
-  .eyebrow {
-    @apply inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-700 ring-1 ring-inset ring-brand-200;
   }
   .bn {
     font-family: var(--font-bangla);
   }
+  /* kept for back-compat — now a solid warm clay, no gradient */
   .text-gradient {
-    @apply bg-gradient-to-br from-brand-700 via-brand-600 to-brand-400 bg-clip-text text-transparent;
+    @apply text-brand-700;
+  }
+  .rule {
+    @apply border-t border-slate-200;
   }
 }
 
@@ -75,26 +74,25 @@
   .text-balance {
     text-wrap: balance;
   }
-  .mask-fade-b {
-    -webkit-mask-image: linear-gradient(to bottom, black 72%, transparent);
-    mask-image: linear-gradient(to bottom, black 72%, transparent);
+  .text-pretty {
+    text-wrap: pretty;
   }
-  .grain {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  .measure {
+    max-width: 60ch;
   }
 }
 
-/* Slim scrollbars */
+/* Slim warm scrollbars */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
   border-radius: 9999px;
-  background-color: rgba(148, 163, 184, 0.55);
+  background-color: rgba(140, 126, 109, 0.45);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(100, 116, 139, 0.7);
+  background-color: rgba(110, 98, 83, 0.6);
 }
