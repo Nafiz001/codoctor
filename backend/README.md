@@ -30,6 +30,8 @@ Interactive API docs: http://localhost:8000/docs
 | GET | `/health` | Liveness check |
 | POST | `/assess/danger-signs` | WHO IMCI cough/difficult-breathing classification |
 | POST | `/assess/medication` | Allergy / interaction / duplicate-therapy check |
+| POST | `/rag/search` | Hybrid retrieval over the cited clinical corpus |
+| POST | `/consult/analyze` | Full agentic RAG orchestrator (retrieve → tools → critic → synthesize) |
 
 ### Example — the demo danger sign
 
@@ -49,19 +51,47 @@ curl -X POST http://localhost:8000/assess/medication \
 # -> blocked: true, allergy contraindication cited to the National Formulary
 ```
 
+### Example — the full agentic consultation
+
+```bash
+curl -X POST http://localhost:8000/consult/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"patient":{"allergies":["Penicillin"],"current_meds":["Salbutamol"]},
+       "encounter":{"age_months":36,"symptoms":["fever","cough"],
+       "vitals":{"respiratory_rate":52},"chest_indrawing":true,
+       "proposed_meds":["Amoxicillin"]}}'
+# -> grounded: true, 2 retrieval passes (self-reflective loop), citations to
+#    WHO IMCI + National Formulary, plus the full agent reasoning trace.
+```
+
+## Agentic RAG
+
+`/consult/analyze` runs a **LangGraph** self-reflective loop:
+
+```
+intake → retrieve → run_tools → critic ─┬─(grounding gap)→ retrieve (expanded)
+                                        └─(grounded)──────→ synthesize
+```
+
+- **retrieve** — dependency-free hybrid retriever (BM25 + TF-IDF cosine, fused with RRF) over a curated, cited corpus (`app/rag/corpus.py`). Production swaps the dense side for **BGE-M3**; the interface is unchanged.
+- **run_tools** — the deterministic IMCI + medication engines.
+- **critic** — verifies every surfaced claim is backed by a retrieved source; if not, re-retrieves with an expanded query.
+- **synthesize** — composes the grounded, cited answer. Runs fully **without any API key** (deterministic Bangla template). Set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` to let an LLM *rephrase* the grounded findings (it never adds a new claim).
+
 ## Tests
 
 ```bash
-python tests/test_safety.py     # zero-dependency runner
+python tests/test_safety.py     # safety engines (zero-dependency)
+python tests/test_rag.py        # retriever + orchestrator (needs langgraph)
 # or
 pytest
 ```
 
 ## Roadmap
 
-The safety core is the load-bearing first piece. Next:
+Built so far: the deterministic safety core + the agentic RAG orchestrator. Next:
 
-- **Hybrid RAG** (BM25 + BGE-M3) over WHO IMCI / DGHS STG / National Formulary for cited explanations
-- **LangGraph orchestrator** + the specialist agents (Scribe, Differential, Completeness, Critic, Patient-Summary)
 - **Cloud Bengali ASR** ingestion + dual-device transcript fusion
-- Wire the live frontend to these endpoints (it currently runs on a scripted demo)
+- Add the remaining specialist agents (Scribe entity-extraction, Differential, Completeness, Patient-Summary)
+- Swap the dense retriever for **BGE-M3**; expand the corpus beyond the ARI golden path
+- Wire the live frontend to these endpoints (it currently runs on a scripted demo) and **deploy** (Render)
