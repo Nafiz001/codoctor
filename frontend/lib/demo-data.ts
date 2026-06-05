@@ -218,6 +218,41 @@ export const TRANSCRIPT: TranscriptLine[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Raw per-device transcripts (what each phone's ASR produced, before fusion).
+// Device A (doctor's phone) drops a word on two lines; device B (patient's
+// phone) caught them — the backend's fusion recovers them. Sent live to
+// /consult/from-transcript to prove the fuse → Scribe → analyze pipeline.
+// ---------------------------------------------------------------------------
+export interface DeviceSegment {
+  t: number;
+  speaker: Speaker;
+  text: string;
+  conf: number;
+}
+
+export const DEVICE_A: DeviceSegment[] = [
+  { t: 3, speaker: "doctor", text: "আসসালামু আলাইকুম, বসুন। বাচ্চার কী হয়েছে?", conf: 0.92 },
+  { t: 8, speaker: "patient", text: "ডাক্তার সাহেব, আমার ছেলের তিন দিন ধরে অনেক জ্বর।", conf: 0.9 },
+  { t: 14, speaker: "doctor", text: "জ্বর কেমন? আর অন্য কোনো সমস্যা আছে?", conf: 0.91 },
+  // device A missed "দ্রুত" here (lower confidence on this utterance)
+  { t: 19, speaker: "patient", text: "অনেক বেশি। আর দুই দিন ধরে খুব শ্বাস নিচ্ছে।", conf: 0.78 },
+  { t: 25, speaker: "doctor", text: "কাশি আছে? ঠিকমতো খাওয়া-দাওয়া করছে?", conf: 0.9 },
+  // device A missed "বুকটা টেনে টেনে" here
+  { t: 31, speaker: "patient", text: "কাশি আছে। কিছু খেতে চাইছে না, আর শ্বাস নিচ্ছে।", conf: 0.82 },
+  { t: 38, speaker: "doctor", text: "আচ্ছা, একটু পরীক্ষা করে দেখি।", conf: 0.93 },
+  { t: 46, speaker: "doctor", text: "শ্বাসের হার মিনিটে ৫২, তাপমাত্রা ৩৯.১ ডিগ্রি, বুকের নিচের অংশ টেনে যাচ্ছে।", conf: 0.86 },
+  { t: 54, speaker: "doctor", text: "একটা অ্যান্টিবায়োটিক লিখে দিই — অ্যামোক্সিসিলিন।", conf: 0.9 },
+];
+
+export const DEVICE_B: DeviceSegment[] = [
+  { t: 8.3, speaker: "patient", text: "আমার ছেলের তিন দিন ধরে জ্বর।", conf: 0.7 },
+  // device B caught "দ্রুত"
+  { t: 19.3, speaker: "patient", text: "অনেক বেশি। আর দুই দিন ধরে খুব দ্রুত শ্বাস নিচ্ছে।", conf: 0.72 },
+  // device B caught "বুকটা টেনে টেনে"
+  { t: 31.3, speaker: "patient", text: "কাশি আছে। কিছু খেতে চাইছে না, আর বুকটা টেনে টেনে শ্বাস নিচ্ছে।", conf: 0.75 },
+];
+
+// ---------------------------------------------------------------------------
 // Agent reasoning trace — the visible proof that this is genuinely multi-step
 // ---------------------------------------------------------------------------
 export const AGENT_EVENTS: AgentEvent[] = [

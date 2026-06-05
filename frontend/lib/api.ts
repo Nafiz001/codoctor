@@ -98,3 +98,57 @@ export async function analyzeConsultation(
     return null;
   }
 }
+
+export interface FusedSegment {
+  t: number;
+  speaker: string;
+  text: string;
+  conf: number;
+  recovered: boolean;
+  sources: string[];
+}
+
+export interface ExtractedEncounter {
+  symptoms?: string[];
+  vitals?: Record<string, number>;
+  chest_indrawing?: boolean;
+  general_danger_signs?: string[];
+  proposed_meds?: string[];
+  age_months?: number;
+}
+
+export interface FromTranscriptResult {
+  fused_transcript: FusedSegment[];
+  extracted_encounter: ExtractedEncounter;
+  analysis: ConsultResult;
+}
+
+export interface FromTranscriptPayload {
+  patient: { allergies?: string[]; current_meds?: string[] };
+  device_a: { t: number; speaker: string; text: string; conf: number }[];
+  device_b: { t: number; speaker: string; text: string; conf: number }[];
+  age_months?: number;
+}
+
+/** Full pipeline: fuse two device transcripts → extract → analyze. Null if unavailable. */
+export async function analyzeFromTranscript(
+  payload: FromTranscriptPayload,
+  timeoutMs = 20000
+): Promise<FromTranscriptResult | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/consult/from-transcript`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+      timeoutMs
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as FromTranscriptResult;
+  } catch {
+    return null;
+  }
+}

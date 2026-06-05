@@ -37,10 +37,16 @@ import {
   DANGER_ALERT,
   MEDSAFETY_ALERT,
   SOAP_NOTE,
+  DEVICE_A,
+  DEVICE_B,
   type AgentEvent,
   type TranscriptLine,
 } from "@/lib/demo-data";
-import { analyzeConsultation, API_URL, type ConsultResult } from "@/lib/api";
+import {
+  analyzeFromTranscript,
+  API_URL,
+  type FromTranscriptResult,
+} from "@/lib/api";
 
 const LAST = TRANSCRIPT[TRANSCRIPT.length - 1].id;
 const STEP_MS = 2000;
@@ -48,13 +54,9 @@ const STEP_MS = 2000;
 // The same case the scripted consultation walks through — sent to the live backend.
 const LIVE_PAYLOAD = {
   patient: { allergies: ["Penicillin"], current_meds: ["Salbutamol"] },
-  encounter: {
-    age_months: 36,
-    symptoms: ["fever", "cough"],
-    vitals: { respiratory_rate: 52 },
-    chest_indrawing: true,
-    proposed_meds: ["Amoxicillin"],
-  },
+  device_a: DEVICE_A,
+  device_b: DEVICE_B,
+  age_months: 36,
 };
 
 export default function DoctorPage() {
@@ -62,7 +64,7 @@ export default function DoctorPage() {
   const [playing, setPlaying] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [qrUrl, setQrUrl] = useState("/patient");
-  const [live, setLive] = useState<ConsultResult | null>(null);
+  const [live, setLive] = useState<FromTranscriptResult | null>(null);
   const [liveState, setLiveState] = useState<"idle" | "loading" | "live" | "demo">(
     "idle"
   );
@@ -91,7 +93,7 @@ export default function DoctorPage() {
   useEffect(() => {
     if (!done || liveState !== "idle") return;
     setLiveState("loading");
-    analyzeConsultation(LIVE_PAYLOAD).then((res) => {
+    analyzeFromTranscript(LIVE_PAYLOAD).then((res) => {
       if (res) {
         setLive(res);
         setLiveState("live");
@@ -126,7 +128,7 @@ export default function DoctorPage() {
 
   const runLive = () => {
     setLiveState("loading");
-    analyzeConsultation(LIVE_PAYLOAD).then((res) => {
+    analyzeFromTranscript(LIVE_PAYLOAD).then((res) => {
       if (res) {
         setLive(res);
         setLiveState("live");
@@ -665,13 +667,21 @@ function SoapRow({ k, children }: { k: string; children: React.ReactNode }) {
 
 /* ----------------------------------------------------------- live backend card */
 
+const SYMPTOM_LABELS: Record<string, string> = {
+  fever: "Fever",
+  cough: "Cough",
+  fast_breathing: "Fast breathing",
+  poor_feeding: "Poor feeding",
+  vomiting: "Vomiting",
+};
+
 function LiveAnalysisCard({
   state,
   result,
   onRetry,
 }: {
   state: "idle" | "loading" | "live" | "demo";
-  result: ConsultResult | null;
+  result: FromTranscriptResult | null;
   onRetry: () => void;
 }) {
   return (
@@ -704,27 +714,54 @@ function LiveAnalysisCard({
       {state === "live" && result && (
         <div className="mt-3 space-y-3">
           <div className="flex flex-wrap gap-2">
+            <span className="chip bg-indigo-50 text-indigo-700 ring-indigo-200">
+              <Mic className="h-3 w-3" /> Fused 2 devices ·{" "}
+              {result.fused_transcript.filter((s) => s.recovered).length} recovered
+            </span>
             <span className="chip bg-emerald-50 text-emerald-700 ring-emerald-200">
               <CheckCircle2 className="h-3 w-3" />
-              {result.grounded ? "grounded" : "ungrounded"}
+              {result.analysis.grounded ? "grounded" : "ungrounded"}
             </span>
             <span className="chip bg-brand-50 text-brand-700 ring-brand-200">
-              {result.retrieval_passes} retrieval pass
-              {result.retrieval_passes === 1 ? "" : "es"}
+              {result.analysis.retrieval_passes} retrieval pass
+              {result.analysis.retrieval_passes === 1 ? "" : "es"}
             </span>
-            {result.llm_narration && (
-              <span className="chip bg-slate-100 text-ink-muted ring-slate-200">
-                LLM narration
-              </span>
-            )}
           </div>
+
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+              Scribe extracted — from the fused transcript
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {(result.extracted_encounter.symptoms ?? []).map((s) => (
+                <span key={s} className="chip bg-slate-100 text-ink-muted ring-slate-200">
+                  {SYMPTOM_LABELS[s] ?? s}
+                </span>
+              ))}
+              {result.extracted_encounter.vitals?.respiratory_rate ? (
+                <span className="chip bg-slate-100 text-ink-muted ring-slate-200">
+                  RR {result.extracted_encounter.vitals.respiratory_rate}
+                </span>
+              ) : null}
+              {result.extracted_encounter.chest_indrawing && (
+                <span className="chip bg-red-50 text-red-700 ring-red-200">
+                  chest indrawing
+                </span>
+              )}
+              {(result.extracted_encounter.proposed_meds ?? []).map((m) => (
+                <span key={m} className="chip bg-amber-50 text-amber-700 ring-amber-200">
+                  {m.charAt(0).toUpperCase() + m.slice(1)}
+                </span>
+              ))}
+            </div>
+          </div>
+
           <p className="bn rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-ink-soft ring-1 ring-inset ring-slate-200">
-            {result.answer_bn}
+            {result.analysis.answer_bn}
           </p>
-          <p className="text-xs leading-relaxed text-ink-muted">{result.answer_en}</p>
-          {result.citations.length > 0 && (
+          {result.analysis.citations.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              {result.citations.map((c, i) => (
+              {result.analysis.citations.map((c, i) => (
                 <span
                   key={i}
                   className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[10px] font-medium text-ink-muted ring-1 ring-inset ring-slate-200"
@@ -736,8 +773,8 @@ function LiveAnalysisCard({
             </div>
           )}
           <p className="text-[11px] text-ink-faint">
-            Returned live by the deployed orchestrator (retrieve → tools → critic →
-            synthesize).
+            Live: two device transcripts fused → Scribe-extracted → orchestrated
+            (retrieve → tools → critic → synthesize).
           </p>
         </div>
       )}
