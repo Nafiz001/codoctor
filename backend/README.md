@@ -72,7 +72,7 @@ curl -X POST http://localhost:8000/consult/analyze \
 
 ```
 intake → retrieve → run_tools → critic ─┬─(grounding gap)→ retrieve (expanded)
-                                        └─(grounded)──────→ synthesize
+                                        └─(grounded)→ differential → completeness → synthesize
 ```
 
 - **retrieve** — dependency-free hybrid retriever (BM25 + TF-IDF cosine, fused with RRF) over a curated, cited corpus (`app/rag/corpus.py`). Production swaps the dense side for **BGE-M3**; the interface is unchanged.
@@ -93,10 +93,9 @@ pytest
 
 Built so far: the deterministic safety core, the agentic RAG orchestrator,
 **dual-device transcript fusion** (`app/asr/fusion.py`), and a **deterministic
-Scribe** extractor (`app/asr/scribe.py`) — all deployed on Render and wired to the
-frontend. Next:
+Scribe** extractor (`app/asr/scribe.py`), and **Differential + Completeness**
+agent nodes — all deployed on Render and wired to the frontend. Next:
 
 - **Cloud Bengali ASR** provider to produce the raw per-device transcripts (the fusion + Scribe around it are done and keyless)
-- Remaining specialist agents (Differential, Completeness) as explicit graph nodes
 - Swap the dense retriever for **BGE-M3**; expand the corpus beyond the ARI golden path
 - Clinical validation / co-sign before any real-world use

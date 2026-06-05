@@ -22,6 +22,8 @@ from ..rag.retriever import HybridRetriever
 from ..safety.imci import classify_ari
 from ..safety.medsafety import check_medication
 from .llm import narrate, llm_available
+from .differential import differential as run_differential
+from .completeness import completeness as run_completeness
 
 RETRIEVER = HybridRetriever()
 MAX_RETRIEVALS = 2
@@ -37,6 +39,8 @@ class ConsultState(TypedDict, total=False):
     safety: dict
     grounded: bool
     gaps: list
+    differential: list
+    completeness: dict
     answer_en: str
     answer_bn: str
     citations: list
@@ -170,10 +174,39 @@ def critic(state: ConsultState) -> dict:
     }
 
 
+def differential_node(state: ConsultState) -> dict:
+    dx = run_differential(state.get("encounter", {}) or {}, state.get("patient", {}) or {})
+    top = ", ".join(d["condition"] for d in dx) if dx else "—"
+    return {
+        "differential": dx,
+        "trace": _trace(
+            state, "differential", "Differential",
+            f"Consider: {top}." if dx else "No differential from current findings.",
+            "info", citation=(dx[0]["citation"] if dx else None),
+        ),
+    }
+
+
+def completeness_node(state: ConsultState) -> dict:
+    comp = run_completeness(state.get("encounter", {}) or {})
+    also = comp.get("also_check", [])
+    detail = (
+        "Guideline-recommended checks to confirm: " + "; ".join(also)
+        if also else "IMCI assessment items all have positive findings."
+    )
+    return {
+        "completeness": comp,
+        "trace": _trace(
+            state, "completeness", "Completeness", detail,
+            "flag" if also else "ok", citation=comp.get("citation"),
+        ),
+    }
+
+
 def route(state: ConsultState) -> str:
     if not state.get("grounded", False) and state.get("attempts", 0) < MAX_RETRIEVALS:
         return "retrieve"
-    return "synthesize"
+    return "differential"
 
 
 def _bangla_summary(imci: dict, critical_meds: list) -> str:
@@ -279,6 +312,8 @@ def _build():
     g.add_node("retrieve", retrieve)
     g.add_node("run_tools", run_tools)
     g.add_node("critic", critic)
+    g.add_node("differential", differential_node)
+    g.add_node("completeness", completeness_node)
     g.add_node("synthesize", synthesize)
 
     g.add_edge(START, "intake")
@@ -286,8 +321,10 @@ def _build():
     g.add_edge("retrieve", "run_tools")
     g.add_edge("run_tools", "critic")
     g.add_conditional_edges(
-        "critic", route, {"retrieve": "retrieve", "synthesize": "synthesize"}
+        "critic", route, {"retrieve": "retrieve", "differential": "differential"}
     )
+    g.add_edge("differential", "completeness")
+    g.add_edge("completeness", "synthesize")
     g.add_edge("synthesize", END)
     return g.compile()
 
@@ -307,6 +344,8 @@ def run_consultation(patient: dict, encounter: dict) -> dict:
         "answer_en": final.get("answer_en", ""),
         "citations": final.get("citations", []),
         "safety": final.get("safety", {}),
+        "differential": final.get("differential", []),
+        "completeness": final.get("completeness", {}),
         "retrieved": final.get("retrieved", []),
         "retrieval_passes": final.get("attempts", 0),
         "trace": final.get("trace", []),
