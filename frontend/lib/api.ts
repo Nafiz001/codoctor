@@ -17,13 +17,37 @@ export interface TraceStep {
   citation?: Citation;
 }
 
+export interface ImciResult {
+  classification: string;
+  severity: string;
+  refer: boolean;
+  reasons: string[];
+  action: string;
+  citation?: Citation;
+}
+
+export interface MedFinding {
+  type: string;
+  severity: string;
+  drug: string;
+  reason: string;
+  action?: string;
+  interacts_with?: string;
+  citation?: Citation;
+}
+
+export interface SafetyResult {
+  imci?: ImciResult;
+  medication?: MedFinding[];
+}
+
 export interface ConsultResult {
   grounded: boolean;
   refused: boolean;
   answer_bn: string;
   answer_en: string;
   citations: Citation[];
-  safety: Record<string, unknown>;
+  safety: SafetyResult;
   retrieval_passes: number;
   trace: TraceStep[];
   llm_narration: boolean;
