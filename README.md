@@ -51,7 +51,22 @@ Full product spec, data contracts, RAG design, evaluation plan, and rubric mappi
 
 ## Setup
 
-> Scaffolding in progress — setup instructions will be added with the first code drop (`frontend/` + `backend/`).
+The web app lives in `frontend/` (Next.js 14 + Tailwind CSS).
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:3000
+```
+
+Routes:
+- `/` — landing page (problem, how it works, the agent team, safety stance)
+- `/doctor` — the consultation cockpit; press **Play consultation** to run the scripted pediatric IMCI demo (live transcript → agent reasoning trace → the two deterministic catches → auto-drafted note)
+- `/patient` — the patient's phone view, with in-browser **Bangla text-to-speech**
+
+Production build: `npm run build && npm run start`.
+
+**Deploy (Vercel):** import the repo and set the **Root Directory** to `frontend/` — the framework auto-detects as Next.js. No environment variables are required for the current front-end demo.
 
 ## License & disclaimer
 
