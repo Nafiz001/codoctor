@@ -756,6 +756,25 @@ function LiveAnalysisCard({
             </div>
           </div>
 
+          {result.analysis.differential &&
+            result.analysis.differential.length > 0 && (
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+                  Differential — consider
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {result.analysis.differential.map((d, i) => (
+                    <span
+                      key={i}
+                      className="chip bg-brand-50 text-brand-700 ring-brand-200"
+                    >
+                      {d.condition}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
           <p className="bn rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-ink-soft ring-1 ring-inset ring-slate-200">
             {result.analysis.answer_bn}
           </p>

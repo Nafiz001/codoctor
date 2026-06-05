@@ -41,6 +41,20 @@ export interface SafetyResult {
   medication?: MedFinding[];
 }
 
+export interface DifferentialItem {
+  condition: string;
+  score: number;
+  rationale: string;
+  citation: Citation;
+}
+
+export interface Completeness {
+  recommended?: string[];
+  confirmed?: string[];
+  also_check?: string[];
+  citation?: Citation;
+}
+
 export interface ConsultResult {
   grounded: boolean;
   refused: boolean;
@@ -48,6 +62,8 @@ export interface ConsultResult {
   answer_en: string;
   citations: Citation[];
   safety: SafetyResult;
+  differential?: DifferentialItem[];
+  completeness?: Completeness;
   retrieval_passes: number;
   trace: TraceStep[];
   llm_narration: boolean;

@@ -449,6 +449,82 @@ function ResultView({ result }: { result: ConsultResult }) {
         </div>
       ))}
 
+      {/* differential */}
+      {result.differential && result.differential.length > 0 && (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 font-semibold text-ink">
+            <Sparkles className="h-4 w-4 text-brand-500" /> Differential — consider
+          </div>
+          <ol className="mt-3 space-y-2">
+            {result.differential.map((d, i) => (
+              <li
+                key={i}
+                className="rounded-xl bg-slate-50 p-3 ring-1 ring-inset ring-slate-200"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold text-white">
+                    {i + 1}
+                  </span>
+                  <span className="font-semibold text-ink-soft">{d.condition}</span>
+                </div>
+                <p className="mt-1 text-xs text-ink-muted">{d.rationale}</p>
+                {d.citation && <CiteChip c={d.citation} />}
+              </li>
+            ))}
+          </ol>
+          <p className="mt-2 text-[11px] text-ink-faint">
+            Conditions to consider — not a diagnosis. The clinician decides.
+          </p>
+        </div>
+      )}
+
+      {/* completeness */}
+      {result.completeness &&
+        ((result.completeness.also_check?.length ?? 0) > 0 ||
+          (result.completeness.confirmed?.length ?? 0) > 0) && (
+          <div className="card p-5">
+            <div className="flex items-center gap-2 font-semibold text-ink">
+              <CheckCircle2 className="h-4 w-4 text-brand-500" /> IMCI assessment
+              checklist
+            </div>
+            {result.completeness.confirmed &&
+              result.completeness.confirmed.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">
+                    Confirmed
+                  </div>
+                  <ul className="mt-1 space-y-1">
+                    {result.completeness.confirmed.map((c, i) => (
+                      <li key={i} className="flex gap-1.5 text-sm text-ink-soft">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            {result.completeness.also_check &&
+              result.completeness.also_check.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-600">
+                    Also check (guideline-recommended)
+                  </div>
+                  <ul className="mt-1 space-y-1">
+                    {result.completeness.also_check.map((c, i) => (
+                      <li key={i} className="flex gap-1.5 text-sm text-ink-soft">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            {result.completeness.citation && (
+              <CiteChip c={result.completeness.citation} />
+            )}
+          </div>
+        )}
+
       {/* grounded answer */}
       <div className="card p-5">
         <div className="flex items-center gap-2 font-semibold text-ink">
