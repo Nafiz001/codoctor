@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Team** | _‹your team name›_ |
+| **Team** | Logarithm |
 | **Live demo** | https://codoctor.vercel.app — `/doctor` (cockpit), `/live` (voice quick-check), `/patient` |
 | **Backend API** | https://codoctor-api.onrender.com/docs |
 | **Repository** | https://github.com/Nafiz001/codoctor |
