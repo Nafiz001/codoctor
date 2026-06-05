@@ -1,0 +1,18 @@
+# Render Blueprint — deploys the Codoctor FastAPI backend.
+#
+# In the Render dashboard:  New +  →  Blueprint  →  connect this repo  →  Apply.
+# Render reads this file, builds from backend/, and gives you a public URL.
+services:
+  - type: web
+    name: codoctor-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    region: singapore # closest Render region to Bangladesh
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
