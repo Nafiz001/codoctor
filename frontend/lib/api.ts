@@ -2,7 +2,12 @@
 // If NEXT_PUBLIC_API_URL is unset or the call fails/times out, callers fall back
 // to the scripted demo — so the cockpit never breaks if the backend is asleep.
 
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+// Sanitize the env value: a BOM / zero-width char or stray whitespace at the
+// front (easy to introduce when setting the var) makes the URL lose its scheme,
+// so the browser resolves it relative to the Vercel origin and every call 404s.
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "")
+  .replace(/\s/g, "") // strip BOM/zero-width/whitespace (a BOM here drops the URL scheme → 404)
+  .replace(/\/+$/, "");
 
 export interface Citation {
   source: string;
