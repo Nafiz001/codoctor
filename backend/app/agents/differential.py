@@ -8,6 +8,8 @@ for severity markers and relevant history. The LLM is not involved.
 
 from typing import Dict, List
 
+from ..safety.imci import fast_breathing_threshold
+
 CONDITIONS = [
     {
         "name": "Severe pneumonia / very severe disease",
@@ -48,8 +50,13 @@ def differential(encounter: Dict, patient: Dict) -> List[Dict]:
     findings = set(encounter.get("symptoms", []) or [])
     if encounter.get("chest_indrawing"):
         findings.add("chest_indrawing")
-    if (encounter.get("vitals") or {}).get("respiratory_rate"):
-        findings.add("fast_breathing")  # a measured high rate implies fast breathing
+    rr = (encounter.get("vitals") or {}).get("respiratory_rate")
+    threshold = fast_breathing_threshold(encounter.get("age_months", 0) or 0)
+    if rr and threshold and rr >= threshold:
+        # Only an age-appropriate fast rate counts (WHO IMCI): ≥50/min for
+        # 2–11 months, ≥40/min for 12–59 months. A normal rate must not flip
+        # this on, or it falsely surfaces pneumonia for a well-breathing child.
+        findings.add("fast_breathing")
     has_danger = bool(encounter.get("general_danger_signs"))
     meds = " ".join(patient.get("current_meds", []) or []).lower()
 
