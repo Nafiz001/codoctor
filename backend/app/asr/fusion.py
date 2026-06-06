@@ -15,20 +15,20 @@ from typing import List, Dict, Optional
 
 def _merge_pair(primary: str, secondary: str) -> tuple:
     """Merge two token strings, trusting `primary`, filling its gaps from
-    `secondary`. Returns (fused_text, recovered_from_secondary)."""
+    `secondary`. Returns (fused_text, recovered_tokens) where recovered_tokens
+    are the tokens only the secondary device caught (empty if none)."""
     a = primary.split()
     b = secondary.split()
     sm = difflib.SequenceMatcher(a=a, b=b, autojunk=False)
     out: List[str] = []
-    recovered = False
+    recovered_tokens: List[str] = []
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag in ("equal", "replace", "delete"):
             out.extend(a[i1:i2])  # keep primary's surface form
         elif tag == "insert":
             out.extend(b[j1:j2])  # tokens only the secondary caught
-            if b[j1:j2]:
-                recovered = True
-    return " ".join(out), recovered
+            recovered_tokens.extend(b[j1:j2])
+    return " ".join(out), recovered_tokens
 
 
 def _similar(a_text: str, b_text: str) -> float:
@@ -84,13 +84,14 @@ def fuse(
             conf_a = float(sa.get("conf", 1.0))
             conf_b = float(sb.get("conf", 1.0))
             primary, secondary = (sa, sb) if conf_a >= conf_b else (sb, sa)
-            text, recovered = _merge_pair(primary["text"], secondary["text"])
+            text, recovered_tokens = _merge_pair(primary["text"], secondary["text"])
             fused.append({
                 "t": min(float(sa["t"]), float(sb["t"])),
                 "speaker": sa["speaker"],
                 "text": text,
                 "conf": round(max(conf_a, conf_b), 2),
-                "recovered": recovered,
+                "recovered": bool(recovered_tokens),
+                "recovered_tokens": recovered_tokens,
                 "sources": ["A", "B"],
             })
         else:
@@ -100,6 +101,7 @@ def fuse(
                 "text": sa["text"],
                 "conf": round(float(sa.get("conf", 1.0)), 2),
                 "recovered": False,
+                "recovered_tokens": [],
                 "sources": ["A"],
             })
 
@@ -112,6 +114,7 @@ def fuse(
             "text": sb["text"],
             "conf": round(float(sb.get("conf", 1.0)), 2),
             "recovered": False,
+            "recovered_tokens": [],
             "sources": ["B"],
         })
 

@@ -32,6 +32,13 @@ from .asr.fusion import fuse, transcript_text
 from .asr.scribe import extract
 from .sessions import store as sessions
 from .sessions.summary import build_summary
+from .sessions.demo_seed import (
+    DEMO_PATIENT,
+    DEMO_AGE_MONTHS,
+    DEMO_PROPOSED_MEDS,
+    DEMO_DEVICE_A,
+    DEMO_DEVICE_B,
+)
 
 RETRIEVER = HybridRetriever()
 
@@ -145,7 +152,12 @@ def _from_transcript(
     if age_months is not None:
         encounter["age_months"] = age_months
     if extra_meds:
-        merged = list(dict.fromkeys((encounter.get("proposed_meds") or []) + list(extra_meds)))
+        seen, merged = set(), []
+        for m in (encounter.get("proposed_meds") or []) + list(extra_meds):
+            key = m.strip().lower()
+            if key and key not in seen:
+                seen.add(key)
+                merged.append(m)
         encounter["proposed_meds"] = merged
     analysis = run_consultation(patient, encounter)
     return {
@@ -233,3 +245,23 @@ def session_reset(sid: str) -> dict:
     if not rec:
         raise HTTPException(status_code=404, detail="Session not found or expired.")
     return rec
+
+
+@app.post("/session/{sid}/demo", tags=["session"])
+def session_demo(sid: str) -> dict:
+    """One-tap golden-path replay: run the canonical seeded pediatric-ARI
+    consultation through the REAL pipeline (fuse → Scribe → orchestrate),
+    publish the patient summary into the session, and return the full result.
+    Deterministic — no second device, live ASR, or room noise required."""
+    result = _from_transcript(
+        dict(DEMO_PATIENT),
+        list(DEMO_DEVICE_A),
+        list(DEMO_DEVICE_B),
+        age_months=DEMO_AGE_MONTHS,
+        extra_meds=list(DEMO_PROPOSED_MEDS),
+    )
+    summary = build_summary(result["analysis"], dict(DEMO_PATIENT))
+    session = sessions.publish(sid, summary, result["analysis"])
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+    return {"session": session, "summary": summary, "seeded": True, **result}

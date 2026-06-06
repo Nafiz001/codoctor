@@ -20,6 +20,8 @@ import {
   Radio,
   Send,
   AlertTriangle,
+  PlayCircle,
+  Languages,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { TONES } from "@/components/tone";
@@ -31,6 +33,7 @@ import {
   appendTranscript,
   analyzeSession,
   resetSession,
+  runSessionDemo,
   warmBackend,
   API_URL,
   type SessionState,
@@ -69,6 +72,7 @@ export default function RoomPage() {
   const [origin, setOrigin] = useState("");
   const [heard, setHeard] = useState<Heard[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
+  const [demoRunning, setDemoRunning] = useState(false);
   const [result, setResult] = useState<SessionAnalyzeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -142,6 +146,38 @@ export default function RoomPage() {
     }
   };
 
+  // One-tap golden-path replay — works with no second phone, no live ASR.
+  const runDemo = async () => {
+    setDemoRunning(true);
+    setError(null);
+    dictation.stop();
+    let sess = session;
+    if (!sess) {
+      sess = await createSession({
+        allergies: splitList(allergies),
+        current_meds: splitList(currentMeds),
+      });
+      if (sess) setSession(sess);
+    }
+    if (!sess) {
+      setDemoRunning(false);
+      setError(
+        API_URL
+          ? "Couldn't reach the backend — a sleeping free-tier server can take ~30s to wake. Try again."
+          : "Backend URL isn't configured for this build (NEXT_PUBLIC_API_URL)."
+      );
+      return;
+    }
+    const out = await runSessionDemo(sess.id);
+    setDemoRunning(false);
+    if (out) {
+      setResult(out);
+      setSession(out.session);
+    } else {
+      setError("Demo run failed — the backend may be waking. Try again in ~30s.");
+    }
+  };
+
   const newConsult = async () => {
     if (!session) return;
     dictation.stop();
@@ -200,11 +236,11 @@ export default function RoomPage() {
               Works best in Chrome (microphone + Bangla speech recognition).
             </p>
 
-            <div className="mt-6">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <button
                 onClick={start}
-                disabled={creating}
-                className="btn-primary mx-auto"
+                disabled={creating || demoRunning}
+                className="btn-primary"
               >
                 {creating ? (
                   <>
@@ -216,7 +252,28 @@ export default function RoomPage() {
                   </>
                 )}
               </button>
+              <button
+                onClick={runDemo}
+                disabled={creating || demoRunning}
+                className="btn-secondary"
+              >
+                {demoRunning ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Running…
+                  </>
+                ) : (
+                  <>
+                    <PlayCircle className="h-4 w-4" /> Run demo consultation
+                  </>
+                )}
+              </button>
             </div>
+            <p className="mt-3 text-xs text-ink-faint">
+              No second phone? <strong className="font-semibold text-ink-soft">Run demo
+              consultation</strong> replays a real pediatric case through the full
+              pipeline — fusion, danger-sign + drug catches, and the spoken Bangla
+              summary — deterministically.
+            </p>
             {creating && (
               <p className="mt-4 text-xs text-ink-faint">
                 Waking the free-tier server can take up to a minute on the first
@@ -396,22 +453,41 @@ export default function RoomPage() {
 
               <div className="border-t border-slate-100 px-5 py-3">
                 {!result ? (
-                  <button
-                    onClick={analyze}
-                    disabled={analyzing}
-                    className="btn-primary w-full"
-                  >
-                    {analyzing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" /> Fusing &
-                        analyzing…
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4" /> Analyze & send to patient
-                      </>
-                    )}
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={analyze}
+                      disabled={analyzing || demoRunning}
+                      className="btn-primary w-full"
+                    >
+                      {analyzing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" /> Fusing &
+                          analyzing…
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4" /> Analyze & send to patient
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={runDemo}
+                      disabled={analyzing || demoRunning}
+                      className="btn-ghost w-full text-xs"
+                    >
+                      {demoRunning ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Running
+                          seeded demo…
+                        </>
+                      ) : (
+                        <>
+                          <PlayCircle className="h-3.5 w-3.5" /> or replay the
+                          seeded demo case
+                        </>
+                      )}
+                    </button>
+                  </div>
                 ) : (
                   <button onClick={newConsult} className="btn-secondary w-full">
                     <RotateCcw className="h-4 w-4" /> New consultation
@@ -506,7 +582,10 @@ function RoomResult({ result }: { result: SessionAnalyzeResult }) {
     <div className="space-y-4 animate-fade-up">
       <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
         <CheckCircle2 className="mr-1.5 inline h-4 w-4" /> Sent to the patient&apos;s
-        phone — they can listen now.
+        phone — they can listen now.{" "}
+        {result.seeded && (
+          <span className="font-normal text-emerald-600">(seeded demo case)</span>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -528,6 +607,8 @@ function RoomResult({ result }: { result: SessionAnalyzeResult }) {
           {a.retrieval_passes} retrieval pass{a.retrieval_passes === 1 ? "" : "es"}
         </span>
       </div>
+
+      <FusedTranscript segments={result.fused_transcript} />
 
       {imci && (
         <div
@@ -603,6 +684,74 @@ function RoomResult({ result }: { result: SessionAnalyzeResult }) {
         )}
       </div>
     </div>
+  );
+}
+
+function FusedTranscript({
+  segments,
+}: {
+  segments: SessionAnalyzeResult["fused_transcript"];
+}) {
+  if (!segments || segments.length === 0) return null;
+  const totalRecovered = segments.reduce(
+    (n, s) => n + (s.recovered_tokens?.length ?? 0),
+    0
+  );
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 font-semibold text-ink">
+        <Languages className="h-4 w-4 text-brand-500" /> Fused transcript
+        <span className="ml-auto inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+          {totalRecovered} word{totalRecovered === 1 ? "" : "s"} recovered
+        </span>
+      </div>
+      <p className="mt-1 text-[11px] text-ink-faint">
+        One high-confidence transcript reconciled from both phones. Highlighted
+        words were missed by one mic and recovered from the other.
+      </p>
+      <div className="mt-3 space-y-2">
+        {segments.map((s, i) => (
+          <div
+            key={i}
+            className="rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-inset ring-slate-200"
+          >
+            <p className="bn text-sm leading-relaxed text-ink-soft">
+              {highlightRecovered(s.text, s.recovered_tokens)}
+            </p>
+            <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-faint">
+              <span>
+                {s.sources.length === 2
+                  ? "both phones"
+                  : `phone ${s.sources[0]}`}
+              </span>
+              {s.recovered && (
+                <span className="inline-flex items-center gap-0.5 font-semibold text-emerald-600">
+                  <Mic className="h-2.5 w-2.5" /> recovered
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Render text with the recovered tokens visually emphasized. */
+function highlightRecovered(text: string, recovered?: string[]) {
+  if (!recovered || recovered.length === 0) return text;
+  const set = new Set(recovered);
+  return text.split(/(\s+)/).map((tok, i) =>
+    set.has(tok) ? (
+      <mark
+        key={i}
+        className="rounded bg-emerald-200/70 px-0.5 font-semibold text-emerald-900"
+      >
+        {tok}
+      </mark>
+    ) : (
+      <span key={i}>{tok}</span>
+    )
   );
 }
 

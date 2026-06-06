@@ -40,6 +40,11 @@ IMCI_CASES = [
     (36, 40, False, False, [], "pneumonia", False),  # exactly at threshold
     (36, 39, False, False, [], "none", False),
     (30, 30, False, True, [], "severe", True),       # stridor
+    (6, 50, False, False, [], "pneumonia", False),   # exactly at infant threshold (50)
+    (59, 40, False, False, [], "pneumonia", False),  # oldest band, exactly at threshold (40)
+    (59, 39, False, False, [], "none", False),       # just below the child threshold
+    (12, 40, False, False, [], "pneumonia", False),  # band boundary: 12mo uses the 40 cut-off
+    (24, 35, True, False, [], "severe", True),        # indrawing drives severe with a NORMAL rate
 ]
 
 # (proposed, allergies, current, expected_blocked)
@@ -52,6 +57,11 @@ MED_CASES = [
     (["paracetamol"], ["penicillin"], [], False),      # unrelated
     (["ceftriaxone"], ["penicillin"], [], False),      # caution, not blocked
     (["salbutamol"], [], [], False),                   # safe
+    (["warfarin"], [], ["ibuprofen"], True),           # NSAID + anticoagulant interaction
+    (["clarithromycin"], [], ["warfarin"], True),      # macrolide potentiates warfarin
+    (["co-amoxiclav"], ["penicillin"], [], True),      # penicillin-class allergy
+    (["cephalexin"], ["penicillin"], [], False),       # cross-sensitivity = caution, not blocked
+    (["levofloxacin"], [], ["tizanidine"], False),     # not the ciprofloxacin pair -> safe
 ]
 
 # (patient, encounter, expect_grounded, expect_refused)
@@ -66,6 +76,11 @@ ORCH_CASES = [
         {},
         {"age_months": 36, "symptoms": ["cough"], "vitals": {"respiratory_rate": 44}},
         True, False,
+    ),
+    (
+        {},
+        {"age_months": 11, "symptoms": ["fever", "cough"], "vitals": {"respiratory_rate": 55}},
+        True, False,  # infant pneumonia (RR 55 >= 50)
     ),
     ({}, {"age_months": 36}, False, True),  # no data -> honest refusal
 ]

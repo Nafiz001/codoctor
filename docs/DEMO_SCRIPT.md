@@ -12,7 +12,7 @@
 ### 0:00 – 0:30 · HOOK (the catch)
 - **Screen:** `/doctor` → click **Play consultation**. Let it run to the end.
 - **Show:** the red **"Severe pneumonia — refer"** card and the amber **"Amoxicillin blocked — penicillin allergy"** card firing, each with a citation.
-- **VO:** *"In a Bangladeshi government hospital, a doctor gets 90 seconds per patient. Here, a child's fast breathing means severe pneumonia — and the antibiotic about to be prescribed would trigger a known allergy. Codoctor caught both, in Bangla, with citations — before anyone moved on."*
+- **VO:** *"In a Bangladeshi government hospital, a doctor gets 90 seconds per patient. Here, a child's fast breathing together with chest indrawing means severe pneumonia — and the antibiotic about to be prescribed would trigger a known allergy. Codoctor caught both, in Bangla, with citations — before anyone moved on."*
 
 ### 0:30 – 1:10 · THE PROBLEM
 - **Screen:** landing page (`/`) — the stat cards (90s consultation · ~6 doctors/10k · no EHR · Bangla-only).

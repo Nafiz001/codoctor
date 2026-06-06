@@ -126,6 +126,7 @@ export interface FusedSegment {
   text: string;
   conf: number;
   recovered: boolean;
+  recovered_tokens?: string[];
   sources: string[];
 }
 
@@ -206,6 +207,7 @@ export interface SessionState {
 export interface SessionAnalyzeResult extends FromTranscriptResult {
   session: SessionState;
   summary: PatientSummary;
+  seeded?: boolean;
 }
 
 const jsonHeaders = { "Content-Type": "application/json" };
@@ -302,6 +304,26 @@ export async function analyzeSession(
     const res = await withTimeout(
       `${API_URL}/session/${sid}/analyze`,
       { method: "POST", headers: jsonHeaders, body: JSON.stringify(payload) },
+      timeoutMs
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as SessionAnalyzeResult;
+  } catch {
+    return null;
+  }
+}
+
+/** One-tap golden-path replay: run the canonical seeded consultation through the
+ *  real pipeline and publish its summary to the session. No second device needed. */
+export async function runSessionDemo(
+  sid: string,
+  timeoutMs = 45000
+): Promise<SessionAnalyzeResult | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/session/${sid}/demo`,
+      { method: "POST", headers: jsonHeaders },
       timeoutMs
     );
     if (!res.ok) return null;
