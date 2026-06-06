@@ -205,6 +205,12 @@ export interface SessionAnalyzeResult extends FromTranscriptResult {
 
 const jsonHeaders = { "Content-Type": "application/json" };
 
+/** Fire-and-forget ping to wake a sleeping free-tier backend ahead of use. */
+export function warmBackend(): void {
+  if (!API_URL) return;
+  fetch(`${API_URL}/health`).catch(() => {});
+}
+
 /** Open a new live session (doctor console). Null if backend unavailable. */
 export async function createSession(patient: {
   allergies?: string[];
@@ -215,7 +221,7 @@ export async function createSession(patient: {
     const res = await withTimeout(
       `${API_URL}/session/create`,
       { method: "POST", headers: jsonHeaders, body: JSON.stringify({ patient }) },
-      35000 // first call may wake a sleeping free-tier server
+      75000 // a cold Render free-tier server can take ~50–60s to wake
     );
     if (!res.ok) return null;
     return (await res.json()) as SessionState;

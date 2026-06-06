@@ -31,6 +31,7 @@ import {
   appendTranscript,
   analyzeSession,
   resetSession,
+  warmBackend,
   API_URL,
   type SessionState,
   type SessionAnalyzeResult,
@@ -76,6 +77,8 @@ export default function RoomPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") setOrigin(window.location.origin);
+    // Wake a sleeping free-tier backend now, so "Start" is fast when clicked.
+    warmBackend();
   }, []);
 
   // Stream the doctor's recognized speech into the session.
@@ -214,6 +217,12 @@ export default function RoomPage() {
                 )}
               </button>
             </div>
+            {creating && (
+              <p className="mt-4 text-xs text-ink-faint">
+                Waking the free-tier server can take up to a minute on the first
+                request — hang tight.
+              </p>
+            )}
             {error && (
               <p className="mt-4 inline-flex items-center gap-1.5 text-sm text-amber-700">
                 <AlertTriangle className="h-4 w-4" /> {error}
