@@ -18,11 +18,13 @@ import {
   Loader2,
   ScrollText,
   Radio,
+  Download,
 } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { cn } from "@/lib/utils";
 import { PATIENT_SUMMARY } from "@/lib/demo-data";
 import { useDictation } from "@/lib/use-dictation";
+import { citationHref } from "@/lib/citations";
 import {
   joinSession,
   getSession,
@@ -41,6 +43,55 @@ function speechText(s: PatientSummary): string {
     s.medsBn,
     "বিপদের লক্ষণ: " + s.dangerSignsBn.join("; ") + "।",
   ].join(" ");
+}
+
+/** Build a standalone, printable HTML record and download it to the device, so
+ *  the patient keeps their own copy — "the record stays with you." */
+function downloadRecord(s: PatientSummary): void {
+  const esc = (x: string) =>
+    x.replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m] as string));
+  const danger = s.dangerSignsBn
+    .map(
+      (d, i) =>
+        `<li>${esc(d)}${
+          s.dangerSignsEn[i] ? ` <span class="en">(${esc(s.dangerSignsEn[i])})</span>` : ""
+        }</li>`
+    )
+    .join("");
+  const cites = (s.citations || [])
+    .map((c) => `<li>${esc(c.source)} — ${esc(c.ref)}</li>`)
+    .join("");
+  const html = `<!doctype html><html lang="bn"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Codoctor — আপনার স্বাস্থ্য রেকর্ড</title>
+<style>body{font-family:system-ui,'Noto Sans Bengali',Arial,sans-serif;max-width:640px;margin:24px auto;padding:0 16px;line-height:1.6;color:#1c1917}
+h1{font-size:20px;margin:0}h2{font-size:14px;margin:18px 0 4px;color:#9F4E2E;text-transform:uppercase;letter-spacing:.04em}
+.box{border:1px solid #e7e5e4;border-radius:12px;padding:12px 16px;margin:10px 0}
+.danger{border-color:#fca5a5;background:#fef2f2}.en{color:#78716c}small{color:#78716c}ul{margin:6px 0;padding-left:18px}</style></head>
+<body>
+<h1>Codoctor — আপনার স্বাস্থ্য রেকর্ড</h1>
+<small>Advisory only · ডাক্তারের পরামর্শের বিকল্প নয়</small>
+<div class="box"><h2>রোগ নির্ণয় · Condition</h2><b>${esc(s.conditionBn)}</b><br><span class="en">${esc(
+    s.conditionEn
+  )}</span><p>${esc(s.meaningBn)}</p></div>
+<div class="box danger"><h2>করণীয় · Action</h2><b>${esc(s.actionBn)}</b><br><span class="en">${esc(
+    s.actionEn
+  )}</span></div>
+<div class="box"><h2>ওষুধ · Medicines</h2>${esc(s.medsBn)}<br><span class="en">${esc(
+    s.medsEn
+  )}</span></div>
+<div class="box danger"><h2>বিপদের লক্ষণ · Danger signs</h2><ul>${danger}</ul></div>
+${cites ? `<div class="box"><h2>Based on</h2><ul>${cites}</ul></div>` : ""}
+</body></html>`;
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "codoctor-health-record.html";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 export default function PatientPage() {
@@ -281,6 +332,17 @@ function SummaryScreen({
     setSpeaking(false);
   };
 
+  // A real consultation result is the patient's to keep — persist it on-device.
+  useEffect(() => {
+    if (mode !== "live") return;
+    try {
+      localStorage.setItem(
+        "codoctor:record",
+        JSON.stringify({ summary, savedAt: new Date().toISOString() })
+      );
+    } catch {}
+  }, [mode, summary]);
+
   const isSevere = summary.tone === "red" || summary.refer;
 
   return (
@@ -404,18 +466,44 @@ function SummaryScreen({
               Based on
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {summary.citations.map((c, i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 text-[10px] font-medium text-ink-muted ring-1 ring-inset ring-slate-200"
-                >
-                  <ScrollText className="h-3 w-3 text-brand-500" />
-                  {c.source} · {c.ref}
-                </span>
-              ))}
+              {summary.citations.map((c, i) => {
+                const href = citationHref(c.source);
+                const cls =
+                  "inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 text-[10px] font-medium text-ink-muted ring-1 ring-inset ring-slate-200";
+                const body = (
+                  <>
+                    <ScrollText className="h-3 w-3 text-brand-500" />
+                    {c.source} · {c.ref}
+                  </>
+                );
+                return href ? (
+                  <a
+                    key={i}
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={cn(cls, "transition hover:text-brand-700 hover:ring-brand-300")}
+                  >
+                    {body}
+                  </a>
+                ) : (
+                  <span key={i} className={cls}>
+                    {body}
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}
+
+        <button
+          onClick={() => downloadRecord(summary)}
+          className="flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-bold text-ink-soft shadow-soft ring-1 ring-inset ring-slate-200 transition hover:ring-brand-300"
+        >
+          <Download className="h-4 w-4 text-brand-600" />
+          <span className="bn">রেকর্ড সংরক্ষণ করুন</span>
+          <span className="font-medium text-ink-muted">Save record</span>
+        </button>
 
         <div className="flex items-start gap-2 rounded-xl bg-white p-4 text-xs text-ink-muted ring-1 ring-inset ring-slate-200">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />

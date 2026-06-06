@@ -33,26 +33,13 @@ We reproduce **no copyrighted text verbatim at scale** — corpus entries are co
 
 ## Evaluation results
 
-Software-correctness on our authored set (`backend/eval/run_eval.py`), **not** patient-outcome accuracy:
-
-| Metric | Result |
-|---|---|
-| IMCI classification accuracy | 17/17 (100%) |
-| Danger-sign recall (0 missed referrals) | 5/5 (100%) |
-| Specificity (0 false referrals) | 12/12 (100%) |
-| Medication-safety catch rate | 7/7 (100%) |
-| Medication false-positives | 0/6 (0%) |
-| Orchestrator grounding / citation | 3/3 (100%) |
-| Honest refusal on insufficient data | 1/1 (100%) |
+Software-correctness on our authored set (`python backend/eval/run_eval.py`), **not** patient-outcome accuracy: IMCI classification **17/17**; danger-sign recall **5/5 (0 missed)**; specificity **12/12 (0 false referrals)**; medication-safety catch **7/7** with **0/6 false-positives**; orchestrator grounding + citation **3/3**; honest refusal on insufficient data **1/1**. Unit tests **27/27**.
 
 ## Known limitations & ethical considerations
 
-- **Advisory & non-diagnostic.** Codoctor does not diagnose, prescribe, or replace a clinician; every output requires clinician confirmation. The deterministic engines make the high-stakes calls; the LLM only narrates.
-- **Not clinically validated.** Reported numbers are software-correctness on a curated set, **not** patient-outcome accuracy. Scope is currently **pediatric acute respiratory infection (IMCI)** only.
-- **Guideline currency.** Paraphrased chunks may lag official updates — always defer to the current official WHO/DGHS/NDF source.
-- **Voice reliability.** Browser Bangla ASR degrades on dialect/noise and is **unavailable on iOS Safari**; mitigated by dual-mic fusion, a typed/seeded fallback, and the scripted `/doctor` demo path.
-- **No speaker diarization.** The two device streams are fused by timing + lexical overlap, not by "who spoke"; fusion only merges genuine same-utterance overlaps and otherwise passes each device's text through unchanged.
-- **Ephemeral sessions.** The live QR session is in-memory (single process, ~2h TTL); a server restart clears active sessions. There is no durable/longitudinal multi-visit record yet — the patient summary persists only on the patient's device.
-- **Real-time transport.** The live session syncs by short HTTP polling (~3s), not WebSockets.
-- **Privacy.** Data is processed in-session; the patient owns their record; no PII is retained server-side. Misuse for unsupervised self-treatment is an explicit risk — the UI keeps a clinician/facility in the loop and states the advisory scope.
-- **Bias/coverage.** A small corpus over-represents the modelled condition; broadening coverage and clinical co-sign are planned before any real-world use.
+- **Advisory & non-diagnostic.** Does not diagnose, prescribe, or replace a clinician; every output requires clinician confirmation. Deterministic engines make the high-stakes calls; the LLM only narrates.
+- **Not clinically validated.** Reported numbers are software-correctness on a curated set, **not** patient-outcome accuracy. Scope is currently **pediatric acute respiratory infection (WHO IMCI)** only; a small corpus over-represents the modelled condition.
+- **Guideline currency.** Paraphrased chunks may lag official updates — always defer to the current WHO/DGHS/NDF source.
+- **Voice reliability.** Browser Bangla ASR degrades on dialect/noise and is unavailable on iOS Safari; mitigated by dual-mic fusion, a typed/seeded fallback, and the scripted `/doctor` path. No speaker diarization — streams are fused by timing + lexical overlap (genuine same-utterance merges only).
+- **Engineering limits (honest).** Live session is in-memory (single process, ~2h TTL; a restart clears it) and syncs by ~3s HTTP polling, not WebSockets; the patient summary persists only on the patient's device. No durable longitudinal record, dense retriever, or clinician co-sign yet.
+- **Privacy & misuse.** Processed in-session; the patient owns their record; no PII retained server-side. Unsupervised self-treatment is an explicit risk — the UI keeps a clinician/facility in the loop and states the advisory scope. Broadening coverage and clinical co-sign are required before any real-world use.

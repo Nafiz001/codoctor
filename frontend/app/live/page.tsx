@@ -19,6 +19,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { TONES } from "@/components/tone";
 import { cn } from "@/lib/utils";
 import { analyzeConsultation, API_URL, type ConsultResult } from "@/lib/api";
+import { citationHref } from "@/lib/citations";
 import type { Tone } from "@/lib/demo-data";
 
 const DANGER_OPTIONS = [
@@ -580,10 +581,25 @@ function ResultView({ result }: { result: ConsultResult }) {
 }
 
 function CiteChip({ c }: { c: { source: string; ref: string } }) {
-  return (
-    <span className="mt-2 inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[10px] font-medium text-ink-muted ring-1 ring-inset ring-slate-200">
+  const href = citationHref(c.source);
+  const className =
+    "mt-2 inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[10px] font-medium text-ink-muted ring-1 ring-inset ring-slate-200";
+  const body = (
+    <>
       <ScrollText className="h-3 w-3 text-brand-500" />
       {c.source} · {c.ref}
-    </span>
+    </>
+  );
+  if (!href) return <span className={className}>{body}</span>;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className={cn(className, "transition hover:text-brand-700 hover:ring-brand-300")}
+      title={`Open source: ${c.source}`}
+    >
+      {body}
+    </a>
   );
 }

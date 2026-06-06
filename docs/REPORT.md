@@ -48,7 +48,7 @@ The design principle throughout: **deterministic tools make the high-stakes deci
             ┌───────────────────────────────────────────┐
             │  HEAVY-ML FRONT DOOR                       │
             │  Bangla ASR ×2 → transcript FUSION →       │
-            │  diarization → entity extraction           │
+            │  Scribe entity extraction                  │
             └───────────────────┬───────────────────────┘
                     structured Consultation Context
                                 ▼
@@ -75,7 +75,7 @@ The design principle throughout: **deterministic tools make the high-stakes deci
 ## 4. Methodology
 
 ### 4.1 The data contract
-The heavy-ML front door converts audio into a single structured **Consultation Context** object (patient history, fused/diarized transcript, extracted symptoms/vitals/meds, plus retrieved guideline chunks). The reasoning agents receive *that* — never raw audio — which keeps them fast, debuggable, and cheap, and lets each agent receive only the slice it needs.
+The heavy-ML front door converts audio into a single structured **Consultation Context** object (patient history, fused transcript, extracted symptoms/vitals/meds, plus retrieved guideline chunks). The reasoning agents receive *that* — never raw audio — which keeps them fast, debuggable, and cheap, and lets each agent receive only the slice it needs.
 
 ### 4.2 Retrieval-augmented generation (the trust layer)
 - **Corpus.** A curated, atomic-chunk corpus authored from **WHO IMCI**, the **DGHS Standard Treatment Guidelines (Bangladesh)**, and the **National Drug Formulary of Bangladesh / BNF**, scoped to the pediatric acute-respiratory-infection (ARI) golden path. Each chunk carries its `source` + `section`, so every retrieved fact is citable. *A small flawless corpus beats a broad noisy one.*
@@ -138,7 +138,7 @@ Unit tests: **15/15 pass** (`test_safety.py` 9, `test_rag.py` 6).
 - **Demo data.** The doctor cockpit *plays* a scripted consultation for a reliable stage demo (the rulebook's deterministic-fallback best practice); the live agentic results come from the deployed backend.
 - **No real EHR integration** yet — the longitudinal record is one Codoctor builds itself.
 
-**Future work.** Server-side cloud Bengali ASR + true dual-device transcript fusion; the remaining specialist agents (entity-extraction Scribe, Differential, Completeness); swap the dense retriever for **BGE-M3** and broaden the corpus; clinical validation with a partner facility; DGHS facility-directory referral routing.
+**Future work.** Server-side cloud Bengali ASR and speaker diarization; WebSocket real-time sync (today: ~3s HTTP polling) and a durable longitudinal record (today: in-memory session + on-device summary); swap the dense retriever for **BGE-M3** and broaden the corpus beyond pediatric ARI; clinical validation with a partner facility and a doctor co-sign; DGHS facility-directory referral routing.
 
 ---
 
