@@ -107,3 +107,34 @@ class FromTranscriptRequest(BaseModel):
     device_a: list[DeviceSegment]
     device_b: list[DeviceSegment]
     age_months: Optional[int] = Field(None, description="Optional age override.")
+
+
+# --- Live session (real two-device flow joined by QR) ----------------------
+
+
+class SessionCreateRequest(BaseModel):
+    """Doctor console opens a session; patient context seeds the safety checks."""
+
+    patient: PatientContext = Field(default_factory=PatientContext)
+
+
+class JoinRequest(BaseModel):
+    role: str = Field("patient", description='"doctor" or "patient".')
+
+
+class TranscriptAppend(BaseModel):
+    """One recognized utterance streamed from a device's browser ASR."""
+
+    role: str = Field(..., description='"doctor" or "patient" — which device.')
+    text: str = Field(..., min_length=1)
+    conf: float = Field(0.9, ge=0, le=1, description="ASR confidence 0–1.")
+
+
+class SessionAnalyzeRequest(BaseModel):
+    """Clinical context the doctor confirms before running the analysis."""
+
+    patient: PatientContext = Field(default_factory=PatientContext)
+    age_months: Optional[int] = Field(None, description="Child age in months.")
+    proposed_meds: list[str] = Field(
+        default_factory=list, description="Drug(s) the doctor intends to prescribe."
+    )

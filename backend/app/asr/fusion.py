@@ -31,14 +31,29 @@ def _merge_pair(primary: str, secondary: str) -> tuple:
     return " ".join(out), recovered
 
 
+def _similar(a_text: str, b_text: str) -> float:
+    """Token-level similarity (0–1) between two utterances."""
+    return difflib.SequenceMatcher(
+        a=a_text.split(), b=b_text.split(), autojunk=False
+    ).ratio()
+
+
 def fuse(
     device_a: List[Dict],
     device_b: List[Dict],
     window: float = 2.5,
+    min_ratio: float = 0.4,
 ) -> List[Dict]:
     """Fuse two device transcripts.
 
     Each device transcript is a list of segments: {t, speaker, text, conf}.
+    Two segments are merged only when they are plausibly the *same* utterance —
+    close in time, same speaker, AND lexically similar (``min_ratio``). This is
+    the real situation fusion is for: both mics caught the same words, each
+    missing different ones. Utterances unique to one device (the normal case
+    when the two phones hear different turns of the conversation) are kept as-is,
+    never blended into unrelated text.
+
     Returns fused segments: {t, speaker, text, conf, recovered, sources}.
     """
     a = sorted(device_a, key=lambda s: s["t"])
@@ -48,13 +63,20 @@ def fuse(
 
     for sa in a:
         best: Optional[int] = None
-        best_d = window + 1.0
+        best_score = -1.0
         for idx, sb in enumerate(b):
             if idx in used_b or sb["speaker"] != sa["speaker"]:
                 continue
             d = abs(float(sb["t"]) - float(sa["t"]))
-            if d <= window and d < best_d:
-                best, best_d = idx, d
+            if d > window:
+                continue
+            ratio = _similar(sa["text"], sb["text"])
+            if ratio < min_ratio:
+                continue
+            # Prefer the most similar match; break ties by time proximity.
+            score = ratio - (d / window) * 0.05
+            if score > best_score:
+                best, best_score = idx, score
 
         if best is not None:
             sb = b[best]

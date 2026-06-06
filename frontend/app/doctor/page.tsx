@@ -169,6 +169,9 @@ export default function DoctorPage() {
             <span className="chip hidden bg-brand-50 text-brand-700 ring-brand-200 sm:inline-flex">
               <Sparkles className="h-3 w-3" /> Demo mode · scripted
             </span>
+            <Link href="/room" className="btn-secondary">
+              <Activity className="h-4 w-4" /> Go live
+            </Link>
             <Link href="/" className="btn-ghost">
               <ArrowLeft className="h-4 w-4" /> Home
             </Link>

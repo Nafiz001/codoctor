@@ -124,7 +124,9 @@ export default function LivePage() {
       encounter: {
         age_months: Number(ageMonths) || 36,
         symptoms: splitList(symptoms),
-        vitals: respiratoryRate ? { respiratory_rate: Number(respiratoryRate) } : {},
+        vitals: (respiratoryRate
+          ? { respiratory_rate: Number(respiratoryRate) }
+          : {}) as Record<string, number>,
         chest_indrawing: chestIndrawing,
         general_danger_signs: dangerSigns,
         proposed_meds: splitList(proposedMed),

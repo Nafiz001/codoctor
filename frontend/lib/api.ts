@@ -168,3 +168,150 @@ export async function analyzeFromTranscript(
     return null;
   }
 }
+
+// --- Live session: the real two-device flow joined by a QR code -------------
+
+/** Patient-facing summary, built by the backend from the live analysis. */
+export interface PatientSummary {
+  conditionBn: string;
+  conditionEn: string;
+  meaningBn: string;
+  meaningEn: string;
+  actionBn: string;
+  actionEn: string;
+  medsBn: string;
+  medsEn: string;
+  dangerSignsBn: string[];
+  dangerSignsEn: string[];
+  tone: "red" | "amber" | "brand";
+  refer: boolean;
+  citations: Citation[];
+}
+
+export interface SessionState {
+  id: string;
+  status: "waiting" | "ready";
+  patient: { allergies?: string[]; current_meds?: string[] };
+  devices: { doctor: boolean; patient: boolean };
+  counts: { doctor: number; patient: number };
+  summary: PatientSummary | null;
+  created_at: number;
+}
+
+export interface SessionAnalyzeResult extends FromTranscriptResult {
+  session: SessionState;
+  summary: PatientSummary;
+}
+
+const jsonHeaders = { "Content-Type": "application/json" };
+
+/** Open a new live session (doctor console). Null if backend unavailable. */
+export async function createSession(patient: {
+  allergies?: string[];
+  current_meds?: string[];
+}): Promise<SessionState | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/session/create`,
+      { method: "POST", headers: jsonHeaders, body: JSON.stringify({ patient }) },
+      35000 // first call may wake a sleeping free-tier server
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as SessionState;
+  } catch {
+    return null;
+  }
+}
+
+/** Poll a session's state (status, who's joined, published summary). */
+export async function getSession(sid: string): Promise<SessionState | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(`${API_URL}/session/${sid}`, {}, 12000);
+    if (!res.ok) return null;
+    return (await res.json()) as SessionState;
+  } catch {
+    return null;
+  }
+}
+
+/** Announce that a device has joined the session. */
+export async function joinSession(
+  sid: string,
+  role: "doctor" | "patient"
+): Promise<SessionState | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/session/${sid}/join`,
+      { method: "POST", headers: jsonHeaders, body: JSON.stringify({ role }) },
+      12000
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as SessionState;
+  } catch {
+    return null;
+  }
+}
+
+/** Stream one recognized utterance from a device into the session. */
+export async function appendTranscript(
+  sid: string,
+  role: "doctor" | "patient",
+  text: string,
+  conf = 0.9
+): Promise<SessionState | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/session/${sid}/transcript`,
+      { method: "POST", headers: jsonHeaders, body: JSON.stringify({ role, text, conf }) },
+      12000
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as SessionState;
+  } catch {
+    return null;
+  }
+}
+
+/** Fuse both devices' transcripts → analyze → publish summary to the session. */
+export async function analyzeSession(
+  sid: string,
+  payload: {
+    patient: { allergies?: string[]; current_meds?: string[] };
+    age_months?: number;
+    proposed_meds?: string[];
+  },
+  timeoutMs = 35000
+): Promise<SessionAnalyzeResult | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/session/${sid}/analyze`,
+      { method: "POST", headers: jsonHeaders, body: JSON.stringify(payload) },
+      timeoutMs
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as SessionAnalyzeResult;
+  } catch {
+    return null;
+  }
+}
+
+/** Clear the transcript to run another consultation in the same session. */
+export async function resetSession(sid: string): Promise<SessionState | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/session/${sid}/reset`,
+      { method: "POST", headers: jsonHeaders },
+      12000
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as SessionState;
+  } catch {
+    return null;
+  }
+}

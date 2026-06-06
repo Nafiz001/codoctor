@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Volume2,
@@ -13,12 +14,236 @@ import {
   ShieldCheck,
   Languages,
   CheckCircle2,
+  Mic,
+  Loader2,
+  ScrollText,
+  Radio,
 } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { cn } from "@/lib/utils";
-import { PATIENT_SUMMARY, PATIENT_SUMMARY_SPEECH } from "@/lib/demo-data";
+import { PATIENT_SUMMARY } from "@/lib/demo-data";
+import { useDictation } from "@/lib/use-dictation";
+import {
+  joinSession,
+  getSession,
+  appendTranscript,
+  API_URL,
+  type PatientSummary,
+  type SessionState,
+} from "@/lib/api";
+
+/** One continuous Bangla paragraph for the text-to-speech read-aloud. */
+function speechText(s: PatientSummary): string {
+  return [
+    s.conditionBn,
+    s.meaningBn,
+    s.actionBn,
+    s.medsBn,
+    "বিপদের লক্ষণ: " + s.dangerSignsBn.join("; ") + "।",
+  ].join(" ");
+}
 
 export default function PatientPage() {
+  return (
+    <Suspense fallback={<Shell><div className="px-4 py-10 text-center text-sm text-ink-faint">Loading…</div></Shell>}>
+      <PatientInner />
+    </Suspense>
+  );
+}
+
+function PatientInner() {
+  const params = useSearchParams();
+  const sid = params.get("s");
+  // No session id → the original scripted demo (kept intact).
+  if (!sid) return <SummaryScreen summary={PATIENT_SUMMARY as PatientSummary} mode="demo" />;
+  return <LiveSession sid={sid} />;
+}
+
+/* ------------------------------------------------------------ live session */
+
+function LiveSession({ sid }: { sid: string }) {
+  const [session, setSession] = useState<SessionState | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [consented, setConsented] = useState(false);
+
+  // Stream the patient phone's recognized speech into the shared session.
+  const dictation = useDictation((text, conf) => {
+    appendTranscript(sid, "patient", text, conf);
+  }, "bn-BD");
+
+  // Join, then poll for the doctor's published summary.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const s = await joinSession(sid, "patient");
+      if (!alive) return;
+      if (s) setSession(s);
+      else setNotFound(true);
+    })();
+    const id = setInterval(async () => {
+      const s = await getSession(sid);
+      if (!alive) return;
+      if (s) {
+        setSession(s);
+        setNotFound(false);
+      }
+    }, 3000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [sid]);
+
+  // Doctor finished → show the real, spoken summary.
+  if (session?.status === "ready" && session.summary) {
+    return <SummaryScreen summary={session.summary} mode="live" />;
+  }
+
+  if (notFound && !session) {
+    return (
+      <Shell>
+        <div className="space-y-4 px-4 py-10 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+            <TriangleAlert className="h-6 w-6" />
+          </div>
+          <h1 className="text-lg font-bold text-ink">Session not found</h1>
+          <p className="mx-auto max-w-xs text-sm text-ink-muted">
+            {API_URL
+              ? `We couldn't find session ${sid}. It may have expired — ask the doctor to scan again.`
+              : "Live sessions need the backend, which isn't configured for this build."}
+          </p>
+          <Link href="/" className="btn-secondary mx-auto">
+            <ArrowLeft className="h-4 w-4" /> Home
+          </Link>
+        </div>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
+      <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2.5 text-emerald-700">
+        <CheckCircle2 className="h-4 w-4" />
+        <span className="text-xs font-semibold">
+          Connected · session {sid}
+        </span>
+      </div>
+
+      <div className="space-y-5 px-4 py-6">
+        <div>
+          <div className="bn text-xs font-semibold uppercase tracking-wide text-brand-600">
+            ভিজিট চলছে
+          </div>
+          <h1 className="bn mt-1 text-xl font-bold text-ink">
+            ডাক্তারের সাথে সংযুক্ত
+          </h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            Connected to your doctor. Allow the mic so this phone can also listen
+            — it helps catch words the other phone misses.
+          </p>
+        </div>
+
+        {!consented ? (
+          <div className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-200">
+            <div className="flex items-center gap-2 font-semibold text-ink">
+              <ShieldCheck className="h-4 w-4 text-brand-500" /> Consent to record
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+              This visit will be transcribed on your phone to build your health
+              record. Audio is processed during the visit only. You can stop any
+              time.
+            </p>
+            <button
+              onClick={() => {
+                setConsented(true);
+                dictation.start();
+              }}
+              className="btn-primary mt-4 w-full"
+            >
+              <Mic className="h-4 w-4" /> I agree — start listening
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-200">
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-ink">
+                {dictation.listening ? (
+                  <>
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                    </span>
+                    Listening…
+                  </>
+                ) : (
+                  <>
+                    <Radio className="h-4 w-4 text-ink-faint" /> Paused
+                  </>
+                )}
+              </span>
+              <button
+                onClick={dictation.listening ? dictation.stop : dictation.start}
+                className={cn(
+                  "chip ring-1",
+                  dictation.listening
+                    ? "bg-red-500 text-white ring-red-500"
+                    : "bg-brand-600 text-white ring-brand-600"
+                )}
+              >
+                {dictation.listening ? (
+                  <>
+                    <Square className="h-3 w-3 fill-white" /> Stop
+                  </>
+                ) : (
+                  <>
+                    <Mic className="h-3 w-3" /> Resume
+                  </>
+                )}
+              </button>
+            </div>
+            {dictation.interim && (
+              <p className="bn mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm italic text-ink-faint">
+                {dictation.interim}…
+              </p>
+            )}
+            {!dictation.supported && (
+              <p className="mt-3 text-xs text-amber-700">
+                Voice input needs Chrome. The doctor&apos;s phone is still
+                listening — your summary will appear here when ready.
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-6 py-8 text-center">
+          <Loader2 className="h-6 w-6 animate-spin text-brand-400" />
+          <p className="bn mt-3 text-sm font-medium text-ink-soft">
+            ডাক্তার শেষ করলে আপনার সারাংশ এখানে আসবে
+          </p>
+          <p className="mt-1 text-xs text-ink-faint">
+            Waiting for your doctor to finish the assessment…
+          </p>
+          {session && (
+            <p className="mt-3 text-[11px] text-ink-faint">
+              Captured on this phone: {session.counts.patient} · doctor&apos;s
+              phone: {session.counts.doctor}
+            </p>
+          )}
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
+/* --------------------------------------------------------- summary screen */
+
+function SummaryScreen({
+  summary,
+  mode,
+}: {
+  summary: PatientSummary;
+  mode: "demo" | "live";
+}) {
   const [speaking, setSpeaking] = useState(false);
   const [showEn, setShowEn] = useState(false);
   const [canSpeak, setCanSpeak] = useState(false);
@@ -41,11 +266,9 @@ export default function PatientPage() {
   const speak = () => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(PATIENT_SUMMARY_SPEECH);
+    const u = new SpeechSynthesisUtterance(speechText(summary));
     u.lang = "bn-BD";
-    const bn = voicesRef.current.find((v) =>
-      v.lang?.toLowerCase().startsWith("bn")
-    );
+    const bn = voicesRef.current.find((v) => v.lang?.toLowerCase().startsWith("bn"));
     if (bn) u.voice = bn;
     u.rate = 0.94;
     u.onend = () => setSpeaking(false);
@@ -53,16 +276,180 @@ export default function PatientPage() {
     setSpeaking(true);
     window.speechSynthesis.speak(u);
   };
-
   const stop = () => {
     window.speechSynthesis?.cancel();
     setSpeaking(false);
   };
 
+  const isSevere = summary.tone === "red" || summary.refer;
+
+  return (
+    <Shell onToggleEn={() => setShowEn((v) => !v)} showEn={showEn}>
+      <div
+        className={cn(
+          "flex items-center gap-2 px-4 py-2.5",
+          mode === "live"
+            ? "bg-emerald-50 text-emerald-700"
+            : "bg-emerald-50 text-emerald-700"
+        )}
+      >
+        <CheckCircle2 className="h-4 w-4" />
+        <span className="text-xs font-semibold">
+          {mode === "live"
+            ? "Live summary from your visit · saved to this phone"
+            : "Connected to Dr. Rahman · OPD Room 4"}
+        </span>
+      </div>
+
+      <div className="space-y-4 px-4 py-5">
+        <div>
+          <div className="bn text-xs font-semibold uppercase tracking-wide text-brand-600">
+            আপনার ভিজিটের সারাংশ
+          </div>
+          <h1 className="bn mt-1 text-xl font-bold text-ink">
+            বাচ্চার স্বাস্থ্য রিপোর্ট
+          </h1>
+          {showEn && (
+            <p className="mt-1 text-sm text-ink-muted">
+              Your visit summary — child&apos;s health report
+            </p>
+          )}
+        </div>
+
+        <button
+          onClick={speaking ? stop : speak}
+          disabled={!canSpeak}
+          className={cn(
+            "flex min-h-[3.5rem] w-full items-center justify-center gap-3 rounded-2xl px-5 text-base font-bold shadow-soft transition-all",
+            speaking ? "bg-ink text-white" : "bg-brand-600 text-white hover:bg-brand-700",
+            !canSpeak && "cursor-not-allowed opacity-50"
+          )}
+        >
+          {speaking ? (
+            <>
+              <span className="flex items-end gap-0.5">
+                {[0.5, 1, 0.6, 0.9].map((h, i) => (
+                  <span
+                    key={i}
+                    className="w-1 animate-wave rounded-full bg-white"
+                    style={{ height: `${h * 18}px`, animationDelay: `${i * 120}ms` }}
+                  />
+                ))}
+              </span>
+              <span className="bn">থামুন</span>
+              <Square className="h-4 w-4 fill-white" />
+            </>
+          ) : (
+            <>
+              <Volume2 className="h-5 w-5" />
+              <span className="bn">সারাংশ শুনুন</span>
+              <span className="text-sm font-medium opacity-80">Listen</span>
+            </>
+          )}
+        </button>
+
+        <Card tone="red" icon={HeartPulse} titleBn="রোগ নির্ণয়" titleEn={showEn ? "Condition" : undefined}>
+          <p className="bn text-base font-semibold leading-relaxed text-red-800">
+            {summary.conditionBn}
+          </p>
+          {showEn && <p className="mt-1.5 text-sm text-ink-muted">{summary.conditionEn}</p>}
+          <p className="bn mt-3 text-sm leading-relaxed text-ink-soft">{summary.meaningBn}</p>
+          {showEn && <p className="mt-1 text-xs text-ink-muted">{summary.meaningEn}</p>}
+        </Card>
+
+        <div
+          className={cn(
+            "overflow-hidden rounded-2xl border-2 shadow-card",
+            isSevere ? "border-red-300 bg-red-600 text-white" : "border-brand-200 bg-brand-600 text-white"
+          )}
+        >
+          <div className="flex items-center gap-3 px-5 py-4">
+            <Hospital className="h-7 w-7 shrink-0" />
+            <div>
+              <div className="bn text-lg font-bold leading-snug">{summary.actionBn}</div>
+              {showEn && <div className="mt-0.5 text-sm text-white/85">{summary.actionEn}</div>}
+            </div>
+          </div>
+        </div>
+
+        <Card tone="amber" icon={Pill} titleBn="ওষুধ" titleEn={showEn ? "Medicines" : undefined}>
+          <p className="bn text-sm leading-relaxed text-ink-soft">{summary.medsBn}</p>
+          {showEn && <p className="mt-1.5 text-xs text-ink-muted">{summary.medsEn}</p>}
+        </Card>
+
+        <Card
+          tone="red"
+          icon={TriangleAlert}
+          titleBn="বিপদের লক্ষণ — সাথে সাথে হাসপাতালে যান"
+          titleEn={showEn ? "Danger signs — go to hospital immediately" : undefined}
+        >
+          <ul className="space-y-2">
+            {summary.dangerSignsBn.map((s, i) => (
+              <li key={s} className="flex items-start gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+                <div>
+                  <span className="bn text-sm font-medium text-ink-soft">{s}</span>
+                  {showEn && summary.dangerSignsEn[i] && (
+                    <span className="block text-xs text-ink-muted">{summary.dangerSignsEn[i]}</span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        {mode === "live" && summary.citations?.length > 0 && (
+          <div className="rounded-xl bg-white p-4 ring-1 ring-inset ring-slate-200">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+              Based on
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {summary.citations.map((c, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 text-[10px] font-medium text-ink-muted ring-1 ring-inset ring-slate-200"
+                >
+                  <ScrollText className="h-3 w-3 text-brand-500" />
+                  {c.source} · {c.ref}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-start gap-2 rounded-xl bg-white p-4 text-xs text-ink-muted ring-1 ring-inset ring-slate-200">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
+          <p>
+            Processed during your visit and saved to your phone — your record
+            stays with you. Codoctor is advisory and does not replace your doctor.
+          </p>
+        </div>
+
+        <Link
+          href="/"
+          className="flex items-center justify-center gap-1.5 py-2 text-sm font-medium text-ink-muted"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to Codoctor
+        </Link>
+      </div>
+    </Shell>
+  );
+}
+
+/* ------------------------------------------------------------------ shell */
+
+function Shell({
+  children,
+  onToggleEn,
+  showEn,
+}: {
+  children: React.ReactNode;
+  onToggleEn?: () => void;
+  showEn?: boolean;
+}) {
   return (
     <div className="min-h-screen bg-slate-100">
       <div className="mx-auto min-h-screen max-w-md bg-slate-50 shadow-card">
-        {/* top bar */}
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200/70 bg-slate-50/90 px-4 py-3 backdrop-blur-xl">
           <div className="flex items-center gap-2">
             <LogoMark className="h-8 w-8" />
@@ -71,168 +458,21 @@ export default function PatientPage() {
               <div className="text-[11px] text-ink-muted">Your health record</div>
             </div>
           </div>
-          <button
-            onClick={() => setShowEn((v) => !v)}
-            className={cn(
-              "chip ring-1",
-              showEn
-                ? "bg-brand-600 text-white ring-brand-600"
-                : "bg-white text-ink-muted ring-slate-200"
-            )}
-          >
-            <Languages className="h-3 w-3" /> EN
-          </button>
+          {onToggleEn && (
+            <button
+              onClick={onToggleEn}
+              className={cn(
+                "chip ring-1",
+                showEn
+                  ? "bg-brand-600 text-white ring-brand-600"
+                  : "bg-white text-ink-muted ring-slate-200"
+              )}
+            >
+              <Languages className="h-3 w-3" /> EN
+            </button>
+          )}
         </header>
-
-        {/* connected banner */}
-        <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2.5 text-emerald-700">
-          <CheckCircle2 className="h-4 w-4" />
-          <span className="text-xs font-semibold">
-            Connected to Dr. Rahman · OPD Room 4
-          </span>
-        </div>
-
-        <div className="space-y-4 px-4 py-5">
-          {/* heading */}
-          <div>
-            <div className="bn text-xs font-semibold uppercase tracking-wide text-brand-600">
-              আপনার ভিজিটের সারাংশ
-            </div>
-            <h1 className="bn mt-1 text-xl font-bold text-ink">
-              বাচ্চার স্বাস্থ্য রিপোর্ট
-            </h1>
-            {showEn && (
-              <p className="mt-1 text-sm text-ink-muted">
-                Your visit summary — child&apos;s health report
-              </p>
-            )}
-          </div>
-
-          {/* Listen button */}
-          <button
-            onClick={speaking ? stop : speak}
-            disabled={!canSpeak}
-            className={cn(
-              "flex min-h-[3.5rem] w-full items-center justify-center gap-3 rounded-2xl px-5 text-base font-bold shadow-soft transition-all",
-              speaking
-                ? "bg-ink text-white"
-                : "bg-brand-600 text-white hover:bg-brand-700",
-              !canSpeak && "cursor-not-allowed opacity-50"
-            )}
-          >
-            {speaking ? (
-              <>
-                <span className="flex items-end gap-0.5">
-                  {[0.5, 1, 0.6, 0.9].map((h, i) => (
-                    <span
-                      key={i}
-                      className="w-1 animate-wave rounded-full bg-white"
-                      style={{ height: `${h * 18}px`, animationDelay: `${i * 120}ms` }}
-                    />
-                  ))}
-                </span>
-                <span className="bn">থামুন</span>
-                <Square className="h-4 w-4 fill-white" />
-              </>
-            ) : (
-              <>
-                <Volume2 className="h-5 w-5" />
-                <span className="bn">সারাংশ শুনুন</span>
-                <span className="text-sm font-medium opacity-80">Listen</span>
-              </>
-            )}
-          </button>
-
-          {/* condition (severe) */}
-          <Card tone="red" icon={HeartPulse} titleBn="রোগ নির্ণয়" titleEn={showEn ? "Condition" : undefined}>
-            <p className="bn text-base font-semibold leading-relaxed text-red-800">
-              {PATIENT_SUMMARY.conditionBn}
-            </p>
-            {showEn && (
-              <p className="mt-1.5 text-sm text-ink-muted">
-                {PATIENT_SUMMARY.conditionEn}
-              </p>
-            )}
-            <p className="bn mt-3 text-sm leading-relaxed text-ink-soft">
-              {PATIENT_SUMMARY.meaningBn}
-            </p>
-            {showEn && (
-              <p className="mt-1 text-xs text-ink-muted">
-                {PATIENT_SUMMARY.meaningEn}
-              </p>
-            )}
-          </Card>
-
-          {/* action — go to hospital now */}
-          <div className="overflow-hidden rounded-2xl border-2 border-red-300 bg-red-600 text-white shadow-card">
-            <div className="flex items-center gap-3 px-5 py-4">
-              <Hospital className="h-7 w-7 shrink-0" />
-              <div>
-                <div className="bn text-lg font-bold leading-snug">
-                  {PATIENT_SUMMARY.actionBn}
-                </div>
-                {showEn && (
-                  <div className="mt-0.5 text-sm text-red-100">
-                    {PATIENT_SUMMARY.actionEn}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* medicines */}
-          <Card tone="amber" icon={Pill} titleBn="ওষুধ" titleEn={showEn ? "Medicines" : undefined}>
-            <p className="bn text-sm leading-relaxed text-ink-soft">
-              {PATIENT_SUMMARY.medsBn}
-            </p>
-            {showEn && (
-              <p className="mt-1.5 text-xs text-ink-muted">
-                {PATIENT_SUMMARY.medsEn}
-              </p>
-            )}
-          </Card>
-
-          {/* danger signs */}
-          <Card
-            tone="red"
-            icon={TriangleAlert}
-            titleBn="বিপদের লক্ষণ — সাথে সাথে হাসপাতালে যান"
-            titleEn={showEn ? "Danger signs — go to hospital immediately" : undefined}
-          >
-            <ul className="space-y-2">
-              {PATIENT_SUMMARY.dangerSignsBn.map((s, i) => (
-                <li key={s} className="flex items-start gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
-                  <div>
-                    <span className="bn text-sm font-medium text-ink-soft">{s}</span>
-                    {showEn && (
-                      <span className="block text-xs text-ink-muted">
-                        {PATIENT_SUMMARY.dangerSignsEn[i]}
-                      </span>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
-
-          {/* privacy */}
-          <div className="flex items-start gap-2 rounded-xl bg-white p-4 text-xs text-ink-muted ring-1 ring-inset ring-slate-200">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
-            <p>
-              Processed during your visit and saved to your phone — your record
-              stays with you. Codoctor is advisory and does not replace your
-              doctor.
-            </p>
-          </div>
-
-          <Link
-            href="/"
-            className="flex items-center justify-center gap-1.5 py-2 text-sm font-medium text-ink-muted"
-          >
-            <ArrowLeft className="h-4 w-4" /> Back to Codoctor
-          </Link>
-        </div>
+        {children}
       </div>
     </div>
   );
@@ -252,11 +492,7 @@ function Card({
   children: React.ReactNode;
 }) {
   const ring =
-    tone === "red"
-      ? "ring-red-100"
-      : tone === "amber"
-      ? "ring-amber-100"
-      : "ring-brand-100";
+    tone === "red" ? "ring-red-100" : tone === "amber" ? "ring-amber-100" : "ring-brand-100";
   const iconWrap =
     tone === "red"
       ? "bg-red-50 text-red-600 ring-red-200"
@@ -276,9 +512,7 @@ function Card({
         </span>
         <div>
           <div className="bn text-sm font-bold text-ink">{titleBn}</div>
-          {titleEn && (
-            <div className="text-[11px] text-ink-faint">{titleEn}</div>
-          )}
+          {titleEn && <div className="text-[11px] text-ink-faint">{titleEn}</div>}
         </div>
       </div>
       <div className="mt-3">{children}</div>
