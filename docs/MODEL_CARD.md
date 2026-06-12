@@ -13,10 +13,11 @@
 
 | Model / service | Provider | Role | License | Notes |
 |---|---|---|---|---|
-| **GPT-4o-mini** *or* **Claude Haiku** | OpenAI / Anthropic | **Optional** Bangla narration — *rephrases already-grounded findings only* | Proprietary (commercial API) | **Not required.** System runs fully without any key via deterministic template narration. The LLM never makes a clinical decision and is forbidden from adding new claims. |
-| **Web Speech API — SpeechRecognition** | Browser/OS (e.g. Chrome → Google) | Keyless Bangla speech-to-text on `/live` | Browser-provided service | No model shipped or trained by us; availability/quality depend on the user's browser. |
+| **GPT-4o-mini** | OpenAI | **Key-optional, two roles:** (1) structured clinical-entity extraction from the fused Bangla transcript, merged *on top of* a deterministic lexicon floor it can add to but never override; (2) Bangla narration — *rephrases already-grounded findings only*, behind a guard rejecting un-grounded drug mentions | Proprietary (commercial API) | **Not required.** System runs fully without any key (regex Scribe + template narration). The LLM never makes a clinical decision. `ANTHROPIC_API_KEY`/Claude Haiku is a supported alternative. |
+| **text-embedding-3-small** | OpenAI | **Key-optional** dense semantic ranker fused (RRF) with BM25 + TF-IDF for cross-lingual retrieval | Proprietary (commercial API) | Corpus embedded once and cached; only the query embedded per request. Without a key, retrieval is the keyless two-ranker hybrid. |
+| **Web Speech API — SpeechRecognition** | Browser/OS (e.g. Chrome → Google) | Keyless Bangla speech-to-text on `/room` and `/live` | Browser-provided service | No model shipped or trained by us; availability/quality depend on the user's browser. |
 | **Web Speech API — SpeechSynthesis** | Browser/OS | Reads the patient's Bangla summary aloud | Browser-provided service | Same as above. |
-| BGE-M3 (`BAAI/bge-m3`) | BAAI | Dense retrieval | MIT | **Planned, not in current build** — retrieval is currently a dependency-free hybrid (BM25 + TF-IDF + RRF) so the free tier serves it instantly. |
+| BGE-M3 (`BAAI/bge-m3`) | BAAI | Self-hosted dense retrieval | MIT | **Planned replacement** for the OpenAI embedding dependency; the `retriever.search()` contract is the swap-in point. |
 
 **No model training or fine-tuning was performed.** The deterministic engines and retriever are authored, auditable code.
 
@@ -33,7 +34,7 @@ We reproduce **no copyrighted text verbatim at scale** — corpus entries are co
 
 ## Evaluation results
 
-Software-correctness on our authored set (`python backend/eval/run_eval.py`), **not** patient-outcome accuracy: IMCI classification **17/17**; danger-sign recall **5/5 (0 missed)**; specificity **12/12 (0 false referrals)**; medication-safety catch **7/7** with **0/6 false-positives**; orchestrator grounding + citation **3/3**; honest refusal on insufficient data **1/1**. Unit tests **27/27**.
+Software-correctness on our authored set (`python backend/eval/run_eval.py`), **not** patient-outcome accuracy: IMCI classification **17/17**; danger-sign recall **5/5 (0 missed)**; specificity **12/12 (0 false referrals)**; medication-safety catch **7/7** with **0/6 false-positives**; orchestrator grounding + citation **3/3**; honest refusal on insufficient data **1/1**. Unit tests **29/29** — all measured on the keyless deterministic path.
 
 ## Known limitations & ethical considerations
 

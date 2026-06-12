@@ -60,6 +60,34 @@ export interface Completeness {
   citation?: Citation;
 }
 
+export interface DoctorRedFlag {
+  kind: string;
+  title: string;
+  detail: string;
+  action?: string;
+  citation?: Citation;
+}
+
+export interface DoctorAsk {
+  text: string;
+  citation?: Citation;
+}
+
+export interface DoctorConsider {
+  condition: string;
+  rationale: string;
+  citation?: Citation;
+}
+
+/** Prioritised, doctor-facing helper — the "second pair of eyes" for the clinician. */
+export interface DoctorAlerts {
+  red_flags: DoctorRedFlag[];
+  ask_these: DoctorAsk[];
+  cautions: DoctorRedFlag[];
+  consider: DoctorConsider[];
+  count: number;
+}
+
 export interface ConsultResult {
   grounded: boolean;
   refused: boolean;
@@ -69,6 +97,7 @@ export interface ConsultResult {
   safety: SafetyResult;
   differential?: DifferentialItem[];
   completeness?: Completeness;
+  doctor_alerts?: DoctorAlerts;
   retrieval_passes: number;
   trace: TraceStep[];
   llm_narration: boolean;

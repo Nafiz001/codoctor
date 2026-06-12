@@ -1,13 +1,26 @@
-"""Scribe — deterministic clinical entity extraction.
+"""Scribe — clinical entity extraction (LLM-assisted, regex-grounded).
 
 Turns a (fused) Bangla/English consultation transcript into the structured
 encounter the orchestrator expects: symptoms, vitals, chest indrawing, general
-danger signs, proposed medicines, and age. Lexicon + regex based, scoped to the
-pediatric ARI domain (an LLM/NER model is a drop-in upgrade; this runs keyless).
+danger signs, proposed medicines, and age.
+
+Two stages, with the deterministic one as a safety floor:
+
+  1. A lexicon + regex pass (`_extract_regex`) — keyless, fast, exact. Whatever it
+     catches is *guaranteed* to survive into the final encounter.
+  2. If an LLM key is configured, a structured-extraction pass (`_extract_llm`)
+     reads the free-text the regex can't — paraphrased or colloquial Bangla — and
+     its findings are *merged on top of* the regex result. The LLM can only add to
+     the controlled vocabulary; it can never delete a deterministic catch, and the
+     life-or-death decisions still belong to the rule engines, not the Scribe.
+
+With no key the Scribe is exactly the original deterministic extractor.
 """
 
 import re
 from typing import Dict, List, Optional
+
+from ..agents.llm import extract_json, llm_available
 
 BN_DIGITS = str.maketrans("০১২৩৪৫৬৭৮৯", "0123456789")
 
@@ -101,8 +114,8 @@ def _extract_age_months(text: str) -> Optional[int]:
     return None
 
 
-def extract(text: str) -> Dict:
-    """Extract a structured encounter from transcript text."""
+def _extract_regex(text: str) -> Dict:
+    """Deterministic lexicon + regex extraction — the safety floor."""
     low = text.lower()  # English matching; Bangla unaffected by lower()
 
     symptoms = [name for name, phrases in SYMPTOM_LEX.items() if _find_any(low, phrases)]
@@ -130,3 +143,108 @@ def extract(text: str) -> Dict:
     if age is not None:
         encounter["age_months"] = age
     return encounter
+
+
+# Controlled vocabulary the LLM must map free text onto — so its output plugs
+# straight into the deterministic engines without a translation layer.
+_SYMPTOM_VOCAB = sorted(SYMPTOM_LEX.keys())
+_DANGER_VOCAB = sorted(DANGER_LEX.keys())
+
+_LLM_SYSTEM = (
+    "You are a clinical scribe for a Bangladeshi pediatric (under-5) outpatient "
+    "visit. Read the Bangla/English doctor–patient transcript and extract ONLY "
+    "findings that are explicitly stated. Do not infer, diagnose, or invent. "
+    "Return a single JSON object with these keys:\n"
+    f"  symptoms: array, subset of {_SYMPTOM_VOCAB}\n"
+    f"  general_danger_signs: array, subset of {_DANGER_VOCAB}\n"
+    "  proposed_meds: array of lowercase generic drug names the doctor proposes\n"
+    "  chest_indrawing: boolean (lower chest-wall indrawing/retraction)\n"
+    "  stridor: boolean (stridor in a calm child)\n"
+    "  age_months: integer child age in months, or null\n"
+    "  respiratory_rate: integer breaths/min, or null\n"
+    "  temp_c: number temperature in Celsius, or null\n"
+    "Use ONLY the listed enum values for symptoms and danger signs; omit anything "
+    "not clearly present. Never include a value that was not actually said."
+)
+
+
+def _extract_llm(text: str) -> Optional[Dict]:
+    """Structured LLM extraction over free text. None if no key / failure."""
+    if not llm_available():
+        return None
+    data = extract_json(_LLM_SYSTEM, text)
+    if not isinstance(data, dict):
+        return None
+
+    def _clean_list(value, allowed=None) -> List[str]:
+        out: List[str] = []
+        for item in value or []:
+            if not isinstance(item, str):
+                continue
+            v = item.strip().lower()
+            if not v:
+                continue
+            if allowed is not None and v not in allowed:
+                continue
+            if v not in out:
+                out.append(v)
+        return out
+
+    enc: Dict = {
+        "symptoms": _clean_list(data.get("symptoms"), set(_SYMPTOM_VOCAB)),
+        "general_danger_signs": _clean_list(
+            data.get("general_danger_signs"), set(_DANGER_VOCAB)
+        ),
+        "proposed_meds": _clean_list(data.get("proposed_meds")),
+        "chest_indrawing": bool(data.get("chest_indrawing")),
+        "stridor": bool(data.get("stridor")),
+        "vitals": {},
+    }
+    rr = data.get("respiratory_rate")
+    if isinstance(rr, (int, float)) and 0 < rr <= 200:
+        enc["vitals"]["respiratory_rate"] = int(rr)
+    temp = data.get("temp_c")
+    if isinstance(temp, (int, float)) and 30 <= temp <= 45:
+        enc["vitals"]["temp_c"] = round(float(temp), 1)
+    age = data.get("age_months")
+    if isinstance(age, (int, float)) and 0 <= age <= 60:
+        enc["age_months"] = int(age)
+    return enc
+
+
+def _merge(base: Dict, extra: Optional[Dict]) -> Dict:
+    """Merge the LLM result on top of the regex result. The regex (base) result
+    is the floor: list findings are unioned (LLM can add, never remove), scalars
+    prefer the deterministic value when present, booleans OR together."""
+    if not extra:
+        return base
+    out = dict(base)
+
+    for key in ("symptoms", "general_danger_signs", "proposed_meds"):
+        merged = list(base.get(key, []) or [])
+        for v in extra.get(key, []) or []:
+            if v not in merged:
+                merged.append(v)
+        out[key] = merged
+
+    out["chest_indrawing"] = bool(base.get("chest_indrawing")) or bool(
+        extra.get("chest_indrawing")
+    )
+    out["stridor"] = bool(base.get("stridor")) or bool(extra.get("stridor"))
+
+    vitals = dict(base.get("vitals", {}) or {})
+    for k, v in (extra.get("vitals", {}) or {}).items():
+        vitals.setdefault(k, v)  # trust regex numbers first; fill gaps from LLM
+    out["vitals"] = vitals
+
+    if "age_months" not in out and "age_months" in extra:
+        out["age_months"] = extra["age_months"]
+    return out
+
+
+def extract(text: str) -> Dict:
+    """Extract a structured encounter: deterministic regex, then (if a key is
+    configured) an LLM pass merged on top. Identical to the original keyless
+    extractor when no LLM is available."""
+    base = _extract_regex(text)
+    return _merge(base, _extract_llm(text))

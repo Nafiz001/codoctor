@@ -225,6 +225,19 @@ def _bangla_summary(imci: dict, critical_meds: list) -> str:
     return " ".join(parts) or "চিকিৎসকের পরামর্শ নিন।"
 
 
+def _no_new_drug(polished: str, answer_en: str, meds: list) -> bool:
+    """True if the polished Bangla introduces no drug name absent from the
+    grounded English answer — a cheap guard so narration can't smuggle in a
+    medication the rule engines never surfaced."""
+    known = answer_en.lower()
+    low = polished.lower()
+    for m in meds:
+        drug = (m.get("drug") or "").lower()
+        if drug and drug in low and drug not in known:
+            return False
+    return True
+
+
 def synthesize(state: ConsultState) -> dict:
     enc = state.get("encounter", {}) or {}
     safety = state.get("safety", {}) or {}
@@ -276,12 +289,17 @@ def synthesize(state: ConsultState) -> dict:
 
     if llm_available():
         polished = narrate(
-            "You are a clinical scribe. Rewrite the grounded findings in clear, "
-            "plain Bangla for a low-literacy caregiver. Do NOT add any medical "
-            "claim that is not already present.",
+            "You are a clinical scribe writing for a low-literacy Bangladeshi "
+            "caregiver. Rewrite the grounded findings below as warm, simple, "
+            "spoken-style Bangla they can understand and act on. Keep it short "
+            "(2–4 sentences). You MUST NOT add, soften, or invent any medical "
+            "claim, drug, dose, or instruction that is not already in the text — "
+            "only rephrase what is given. Output Bangla only, no preamble.",
             answer_en,
         )
-        if polished:
+        # Grounding guard: reject the polish if it introduces a drug name that
+        # wasn't in the grounded English answer (the LLM narrates, never decides).
+        if polished and _no_new_drug(polished, answer_en, meds):
             answer_bn = polished
 
     # de-dupe citations
@@ -332,20 +350,98 @@ def _build():
 GRAPH = _build()
 
 
+def doctor_alerts(safety: dict, differential: list, completeness: dict) -> dict:
+    """Consolidate the engines' findings into a prioritised, doctor-facing helper:
+
+      * red_flags  — things the doctor must not miss right now: an IMCI urgent
+                     referral, and any critical medication block (e.g. a proposed
+                     drug the patient is allergic to).
+      * ask_these  — guideline-recommended checks not yet confirmed (the IMCI
+                     assessment items the consultation hasn't covered).
+      * cautions   — non-critical medication notes (cross-sensitivity, duplication).
+      * consider   — the ranked differential (conditions to think about).
+
+    Pure aggregation of deterministic outputs — the LLM is not involved.
+    """
+    safety = safety or {}
+    imci = safety.get("imci") or {}
+    meds = safety.get("medication") or []
+    completeness = completeness or {}
+
+    red_flags: list = []
+    if imci.get("refer"):
+        reasons = "; ".join(imci.get("reasons", []) or []) or imci.get("classification", "")
+        red_flags.append({
+            "kind": "danger_sign",
+            "title": imci.get("classification", "Urgent referral"),
+            "detail": (f"Danger sign — {reasons}. " if reasons else "")
+            + (imci.get("action") or ""),
+            "citation": imci.get("citation"),
+        })
+    for m in meds:
+        if m.get("severity") == "critical":
+            drug = (m.get("drug") or "").title()
+            red_flags.append({
+                "kind": m.get("type", "medication"),
+                "title": f"Do not prescribe {drug}",
+                "detail": m.get("reason", ""),
+                "action": m.get("action"),
+                "citation": m.get("citation"),
+            })
+
+    cautions = [
+        {
+            "kind": m.get("type", "medication"),
+            "title": (m.get("drug") or "").title(),
+            "detail": m.get("reason", ""),
+            "action": m.get("action"),
+            "citation": m.get("citation"),
+        }
+        for m in meds
+        if m.get("severity") == "caution"
+    ]
+
+    ask_these = [
+        {"text": item, "citation": completeness.get("citation")}
+        for item in (completeness.get("also_check") or [])
+    ]
+
+    consider = [
+        {
+            "condition": d.get("condition", ""),
+            "rationale": d.get("rationale", ""),
+            "citation": d.get("citation"),
+        }
+        for d in (differential or [])
+    ]
+
+    return {
+        "red_flags": red_flags,
+        "ask_these": ask_these,
+        "cautions": cautions,
+        "consider": consider,
+        "count": len(red_flags) + len(ask_these) + len(cautions),
+    }
+
+
 def run_consultation(patient: dict, encounter: dict) -> dict:
     """Invoke the orchestrator and return the final state."""
     final = GRAPH.invoke(
         {"patient": patient or {}, "encounter": encounter or {}, "trace": []}
     )
+    safety = final.get("safety", {})
+    differential = final.get("differential", [])
+    completeness = final.get("completeness", {})
     return {
         "grounded": final.get("grounded", False),
         "refused": final.get("refused", False),
         "answer_bn": final.get("answer_bn", ""),
         "answer_en": final.get("answer_en", ""),
         "citations": final.get("citations", []),
-        "safety": final.get("safety", {}),
-        "differential": final.get("differential", []),
-        "completeness": final.get("completeness", {}),
+        "safety": safety,
+        "differential": differential,
+        "completeness": completeness,
+        "doctor_alerts": doctor_alerts(safety, differential, completeness),
         "retrieved": final.get("retrieved", []),
         "retrieval_passes": final.get("attempts", 0),
         "trace": final.get("trace", []),
