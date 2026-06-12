@@ -1,0 +1,334 @@
+===== PAGE 1 =====
+ASSOCIATED WITH
+RULEBOOK
+P  R  E  S  E  N  T  S
+SciBlitz AI Challenge 2026
+
+===== PAGE 2 =====
+Date
+Milestone
+May 13, 2026
+Official announcement & registration portal opens
+June 23, 2026
+Registration closes (11:59 PM BST)
+June 25, 2026
+Confirmed teams notified via email
+July 1, 2026
+Project submission deadline (11:59 PM BST)
+July 3, 2026
+Shortlisted teams announced
+July 10, 2026
+Final Presentation Day — SciBlitz, CUET
+All deadlines are at 11:59 PM Bangladesh Standard Time (BST, UTC+6) unless otherwise stated. Late submissions will
+not be accepted under any circumstances.
+SciBlitz AI Challenge 2026
+IEEE Student Branch, CUET
+Registration Deadline: June 23, 2026   
+Submission Deadline: July 1, 2026   
+Final Day: July 10, 2026  
+SciBlitz AI Challenge is the flagship AI competition of SciBlitz, the national
+technology festival organized by the IEEE Student Branch of Chittagong University of
+Engineering & Technology (CUET). The competition invites student teams from across
+Bangladesh to design and build AI-powered products that address real-world
+problems.
+2. Important Dates
+Official Rulebook — Version 1.0
+Page 2
+1. About the Event
+Registration Fee: BDT 1,000 per team
+Team Size: 1–4 members
+The event follows a two-stage format:
+Stage 1 (Remote): Teams independently build their projects and submit a
+complete project package by July 1, 2026.
+Stage 2 (Final Day): Shortlisted teams present their work live at CUET on July 10,
+2026, in front of a panel of judges.
+
+===== PAGE 3 =====
+SciBlitz AI Challenge 2026
+IEEE Student Branch, CUET
+Official Rulebook — Version 1.0
+Page 3
+3. Eligibility
+The competition is open to all currently enrolled students at any university, college,        
+or polytechnic institute in Bangladesh.
+Teams may include members from different institutions.
+Students from any discipline are welcome, you do not need to be from a computer
+science or engineering background.
+Faculty members and non-students are not permitted to be team members. They may
+serve as mentors only.
+3.1 Who can participate
+3.2 Team Criteria
+Each team must have a minimum of 1 and a maximum of 4 members.
+A participant may only be a member of one team. Dual registration will result in
+disqualification of both teams.
+Cross university teams are allowed.
+One member from the team must be designated as Team Lead. All official
+communication will go through the Team Lead.
+4. Registration & Fee
+4.1 How to register
+Registration is completed via the official Google Form shared on the SciBlitz website and
+social media channels.
+Required information at registration form:
+Team name and institution(s)
+Full names and student IDs of all team members
+Team Lead name, email address, and phone number
+Preferred competition track (see Section 6)
+Payment confirmation (bKash transaction ID — see Section 4.2)
+4.2 Registration fee
+Registration Fee: BDT 1,000 (one thousand taka) per team
+Payment method:
+After payment, enter your bKash transaction ID in the registration form.
+01970233462
+01537355998
+01322712137
+
+===== PAGE 4 =====
+SciBlitz AI Challenge 2026
+IEEE Student Branch, CUET
+Official Rulebook — Version 1.0
+Page 4
+Registrations submitted without a valid transaction ID will not be processed. If you face any payment
+issues, contact the organizing committee before the deadline.
+4.3 Confirmation
+After the registration deadline (June 23), the organizing committee will verify all submissions. Teams
+will receive a confirmation email by June 25 with their team ID and further instructions. Only teams
+that receive a confirmation email are officially registered.
+5. Project Requirements
+5.1 Core requirement
+Artificial intelligence or machine learning must be a central and meaningful component of your
+project; not a peripheral feature. A project that merely calls an API without any meaningful
+integration, customization, or application to a problem will not be considered compliant.
+5.2 Originality & development window
+The project must be original work as per this rulebook.
+Your GitHub repository must show commits made during the competition window (May 14–July
+1, 2026). Repositories with no commits in this period will be flagged.
+5.3 Permitted tools & technologies
+Any programming language, framework, or cloud platform is allowed.
+Use of pre-trained models, foundation models (e.g. GPT-4, Gemini, LLaMA), and fine-tuned
+models is fully permitted and encouraged.
+Public APIs (OpenAI, Hugging Face, Google AI, etc.) are allowed. Usage costs are the team’s
+responsibility.
+Open-source libraries and datasets are allowed. All third-party resources must be properly
+attributed.
+No-code/low-code AI tools (e.g. Bubble, FlutterFlow with AI plugins) are permitted for Track D
+only, provided the report clearly explains the AI logic and the team can answer technical
+questions during judging.
+5.4 Live demo requirement
+Your project must be deployed and accessible via a public URL. Judges will evaluate your product
+directly in the browser. No local setup, installation, or login should be required to access the core
+demo.
+Accepted hosting platforms include (not limited to):
+Hugging Face Spaces — recommended for ML/Gradio/Streamlit apps
+Streamlit Community Cloud
+Vercel or Netlify — for frontend-heavy apps
+Render — for full-stack apps with a backend
+
+===== PAGE 5 =====
+SciBlitz AI Challenge 2026
+IEEE Student Branch, CUET
+Official Rulebook — Version 1.0
+Page 5
+Important: Your hosted app must remain live and responsive until at least July 12, 2026.Test your
+app on the morning of July 9 to ensure it is not in a sleeping/inactive state. Apps that are down or
+unresponsive during judging will not receive additional time.
+If your project is genuinely not a web application (e.g. an embedded system, mobile app, or
+hardware integration), you must contact the organizing committee before July 5 for approval of
+an alternative demonstration format. Approval is not guaranteed.
+6. Competition Tracks
+Teams must declare their track at submission form (will be provided to the teams after
+registration). You may not switch tracks after submission closes.
+Track
+Focus Area
+Track A
+Health & Society — Use AI to address a healthcare, mental health, or social
+welfare problem relevant to Bangladesh or beyond.
+Track B
+Environment & Sustainability — Build something addressing climate
+change, agriculture, disaster response, or environmental monitoring.
+Track C
+Education & Accessibility — AI tools that improve learning outcomes or
+make technology more inclusive for underserved populations.
+Track D
+Open Innovation — Any problem domain of the team’s choosing. AI must
+be central to the solution. Justify your problem choice in the report.
+Track E
+National Defence — AI tool that improves national security.
+7. Submission Requirements
+All deliverables must be submitted via the official submission form by July 1, 2026 at 11:59 PM
+BST. Incomplete submissions will be disqualified.
+7.1 Required deliverables
+1. Live Public URL
+Your project must be deployed and accessible via a public URL. Judges will evaluate your product
+directly in the browser. No local setup, installation, or login should be required to access the core
+demo.
+
+===== PAGE 6 =====
+SciBlitz AI Challenge 2026
+IEEE Student Branch, CUET
+Official Rulebook — Version 1.0
+Page 6
+2. Project Report (PDF, max 8 pages)
+Must cover: Problem statement → Proposed solution → Methodology → AI/ML approach →
+Results → Limitations & future work. Font size min 10pt. Figures and tables are encouraged.
+If your project is genuinely not a web application (e.g. an embedded system, mobile app, or
+hardware integration), you must contact the organizing committee before July 5 for approval of
+an alternative demonstration format. Approval is not guaranteed
+3. GitHub Repository
+Must be public by the submission deadline. Must contain a clear README.md with a
+description of the project, tech stack, and setup instructions. Commit history must show
+activity between May 14–July 1, 2026.
+4. Demo Video
+A screen recording (3–5 minutes) demonstrating the working product. Host on YouTube
+(unlisted) or Google Drive with link sharing enabled. This is an important artifact; judges will
+watch this first.
+5. Model & Data Card
+A single-page document covering: dataset(s) used and source, pre-trained model(s) used (name,
+provider, license), any known limitations or ethical concerns of your AI component.
+7.2 Submission format summary
+Deliverable
+Format
+Submission method
+Live Public URL
+URL
+Paste link in submission form
+Project Report
+PDF
+Upload via submission form
+GitHub Repository
+Public URL
+Paste link in form
+Demo Video
+YouTube / Drive link
+Paste link in form
+Model & Data Card
+PDF (1 page)
+Upload via submission form
+
+===== PAGE 7 =====
+SciBlitz AI Challenge 2026
+IEEE Student Branch, CUET
+Official Rulebook — Version 1.0
+Page 7
+8. Judging Criteria
+All submissions will be evaluated by a panel of at least two judges. Scores from all judges will
+be averaged. The organizing committee may moderate scores in case of significant
+discrepancies.
+Criterion
+Weight
+Max Score
+Innovation & Originality
+25%
+25
+Technical Implementation
+25%
+25
+Real-world Impact & Relevance
+20%
+20
+Demo Quality & Functionality
+20%
+20
+Presentation & Communication
+10%
+10
+Total
+100%
+100
+8.1 Evaluation notes
+Technical Implementation does not require training a model from scratch. Effective,
+appropriate, and well-integrated use of existing tools and APIs will score well.
+Demo Quality is evaluated on your live hosted URL and demo video. A broken demo
+will result in a significantly lower score for this criterion.
+Innovation is assessed relative to the problem context — a novel approach to a local
+problem can score higher than a technically complex but routine solution.
+Presentation score applies only to teams in the Final Day. Remote teams’
+communication scores are based on the report and video.
+8.2 Shortlisting
+After the submission deadline, the top 20 teams by aggregate score will be shortlisted for
+the Final Day. Shortlisted teams will be notified by July 3, 2026. The shortlist decision is
+final.
+
+===== PAGE 8 =====
+SciBlitz AI Challenge 2026
+IEEE Student Branch, CUET
+Official Rulebook — Version 1.0
+Page 8
+9. Final Day — July 10, 2026
+9.1 Format
+Each shortlisted team will receive 5 minutes to present followed by 3 minutes of Q&A
+from the judges.
+Teams may demonstrate their live product during the presentation slot.
+9.2 Attendance
+At least one team member must be physically present at the venue on July 10.
+Remaining members may participate remotely via video call, subject to venue
+connectivity.
+Teams must be available and ready for the full final day schedule. Presentation order
+will be communicated to shortlisted teams on July 9.
+Failure to present at the assigned time without prior notice will result in
+disqualification from the final.
+9.3 Technical preparation
+Check your live demo URL on the evening of July 9.
+Some platforms (e.g. Hugging Face Spaces on free tier) sleep after inactivity; visit your app
+to wake it up.
+Bring a backup: have your demo video ready in case of live demo failure.
+Bring your slides on a USB drive as backup.
+10. Rules & Conduct
+10.1 Prohibited actions
+Plagiarism of code, ideas, text, or visual content without proper attribution.
+Using another team’s work, or having a non-team-member contribute to the project.
+Misrepresenting the capabilities of your product in the demo video or presentation.
+Registering as part of more than one team.
+Harassment, disrespect, or disruptive conduct toward other participants, judges, or
+organizers, whether online or in person.
+Attempting to contact or influence judges regarding scoring.
+
+===== PAGE 9 =====
+SciBlitz AI Challenge 2026
+IEEE Student Branch, CUET
+Official Rulebook — Version 1.0
+Page 9
+10.2 Attribution & open source
+10.3 Intellectual property
+Teams retain full ownership of their projects and all intellectual property created
+during the competition.
+By registering, teams grant IEEE Student Branch CUET a non-exclusive, royalty-free
+license to feature their project name, description, and demo screenshots in SciBlitz
+promotional and documentation materials.
+IEEE SB CUET will not commercially use or redistribute any team’s codebase without
+explicit written permission.
+10.4 Disqualification
+The organizing committee reserves the right to disqualify any team found to be in violation of
+these rules, at any stage of the competition. Disqualification decisions are final. In the event of
+disqualification after fee payment, the registration fee is non-refundable.
+11. Prizes & Recognition
+All third-party code, models, datasets, and libraries used must be listed in the
+README and Model & Data Card.
+Use of open-source code is permitted provided the applicable license is respected
+and attribution is given.
+Violation of a third-party license is grounds for disqualification.
+Prize details will be announced via official SciBlitz channels, stay tuned. All participating
+teams that submit a complete project package will receive:
+       A digital certificate of participation from IEEE Student Branch, CUET
+       Digital recognition for the finalists in all SciBlitz Platform.
+Shortlisted and winning teams will receive additional certificates and recognition as
+announced.
+
+===== PAGE 10 =====
+SciBlitz AI Challenge 2026
+IEEE Student Branch, CUET
+Official Rulebook — Version 1.0
+Page 10
+12. Contact & Communication
+Official communication will be via the email address provided at registration. It is your
+responsibility to monitor your inbox, including spam/junk folders, for updates.
+ 
+For queries, contact the SciBlitz AI Challenge organizing committee:
+ Email: ieeecuetsbofficial@cuet.ac.bd
+ Official social media: https://www.facebook.com/ieeecuetsb
+Do not rely on informal channels for official updates.
+Changes to rules or deadlines, if any, will be communicated via email and the official
+social media page.
+All decisions made by the organizing committee are final.
+This rulebook supersedes all prior verbal or informal communications. Version 1.0.
+SciBlitz AI Challenge 2026 — IEEE Student Branch, CUET
+SciBlitz AI Challenge 2026 — IEEE Student Branch, CUET

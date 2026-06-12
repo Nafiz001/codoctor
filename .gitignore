@@ -49,9 +49,9 @@ Thumbs.db
 .claude/
 
 # ---- Competition reference material (not part of the deliverable) ----
-*.pdf
+
 # ...but the generated deliverable PDFs ARE part of the submission:
 !docs/REPORT.pdf
 !docs/MODEL_CARD.pdf
-rulebook_text.txt
+
 SciBlitz_AI_Challenge_2026_Ideas.md
