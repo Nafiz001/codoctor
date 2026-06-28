@@ -2,6 +2,8 @@ fastapi>=0.110,<1.0
 uvicorn[standard]>=0.29
 pydantic>=2.6
 langgraph>=0.2,<1.0
+openai>=1.0
+python-multipart>=0.0.9
 # Optional AI layer — the app runs fully without these (deterministic fallbacks).
 # Installed so the LLM Scribe, semantic retrieval, and Bangla narration activate
 # the moment OPENAI_API_KEY is present in the environment / backend/.env.
