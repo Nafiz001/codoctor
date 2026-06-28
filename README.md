@@ -14,21 +14,35 @@
 
 In Bangladesh's government-hospital OPDs, one doctor often sees 80–150+ patients a day — a real consultation is **60–120 seconds**. In that window things get missed (an un-asked red-flag question, an unchecked drug interaction, an un-escalated danger sign); nothing is recorded (there is **no national EHR** — the record is a paper slip the patient loses); and the Bangla-only, low-literacy patient can't read the English prescription they're handed.
 
-## The core idea: the LLM never decides — it only narrates
+## The core idea: AI understands, deterministic engines decide
 
-Every high-stakes call is made by a **deterministic, auditable rule engine**, and each returns its own citation:
+AI owns everything *ambiguous* — hearing noisy bilingual speech, extracting clinical meaning from free-form Bangla, finding the right guideline across languages, explaining in plain words. The one **irreversible** call is owned by deterministic, auditable rule engines, each returning its own citation:
 
 - **`safety/imci.py`** — the WHO IMCI "cough or difficult breathing" decision tree (age-specific fast-breathing thresholds: ≥50/min at 2–11 months, ≥40/min at 12–59 months; plus chest indrawing, stridor, and general danger signs).
 - **`safety/medsafety.py`** — allergy, class cross-sensitivity, drug–drug interaction, and duplication checks against exact-match tables.
 
-The LLM (key-optional; defaults to a deterministic Bangla template) only **rephrases already-grounded findings** in plain Bangla, and a critic step suppresses anything not backed by a retrieved guideline chunk. This is the cleanest answer to the obvious objection — *"what if the AI is wrong?"* — the dangerous decisions are not the AI's to make.
+This is the cleanest answer to the obvious objection — *"what if the AI is wrong?"* — the dangerous decisions are not the AI's to make.
+
+### The AI layer (key-optional, three roles)
+
+With `OPENAI_API_KEY` set (see `backend/.env.example`), three AI upgrades activate; without it, each falls back to a free deterministic path so the public demo can never break:
+
+| Role | With key (OpenAI) | Keyless fallback |
+|---|---|---|
+| **Scribe** (`asr/scribe.py`) | **GPT-4o-mini structured extraction** reads paraphrased/colloquial Bangla the lexicon can't; merged *on top of* the regex pass, which is a safety floor it can add to but never remove from | Lexicon + regex extraction |
+| **Retrieval** (`rag/retriever.py` + `rag/embeddings.py`) | **text-embedding-3-small dense ranker** fused into the RRF, so a Bangla query finds the English guideline that *means* the same thing | BM25 + TF-IDF |
+| **Narration** (`agents/graph.py`) | GPT-4o-mini rewrites grounded findings as warm, natural caregiver Bangla — behind a guard that rejects any output introducing a drug the engines never surfaced | Deterministic Bangla template |
+
+The LLM **never makes a clinical decision** in any of the three roles.
 
 ## What it does, end to end
 
 1. **QR-joined live session** — the doctor opens `/room` and gets a QR + session code; the patient scans it to join on their phone.
 2. **Dual-device capture + fusion** — both phones stream browser-recognized Bangla speech into one session; `asr/fusion.py` reconciles the two transcripts and **recovers words one mic missed from the other** (only merging genuine same-utterance overlaps).
-3. **Structure + reason** — `asr/scribe.py` extracts clinical entities; a **LangGraph** orchestrator retrieves cited guidance, runs the deterministic safety tools, self-critiques (re-retrieving on a grounding gap), then runs differential + completeness agents and synthesizes.
-4. **Two outputs** — the doctor gets cited prompts + an auto-drafted SOAP note; the patient's phone shows and **speaks** a plain-Bangla "what you have / do / watch for" summary.
+3. **Structure + reason** — `asr/scribe.py` extracts clinical entities (LLM-assisted, regex-grounded); a **LangGraph** orchestrator retrieves cited guidance, runs the deterministic safety tools, self-critiques (re-retrieving on a grounding gap), then runs differential + completeness agents and synthesizes.
+4. **Two outputs** —
+   - **Doctor co-pilot panel**: a prioritized "second pair of ears" — 🔴 **red flags** the doctor must not miss right now (an IMCI danger-sign escalation, *"Do not prescribe Amoxicillin — patient is allergic to penicillin"*), ❓ **guideline questions not yet asked** in this consult, 💊 medication cautions, and 🔎 a differential to consider — every item cited.
+   - **Patient's phone**: shows and **speaks** a plain-Bangla "what you have / do / watch for" summary.
 
 **Advisory & non-diagnostic. The clinician is always the decision-maker.**
 
@@ -39,16 +53,16 @@ flowchart TD
     A[Doctor phone mic] -->|Bangla ASR| S[(Live session<br/>server-side)]
     B[Patient phone mic] -->|Bangla ASR| S
     S --> F[Dual-device fusion<br/>asr/fusion.py<br/>recovers missed words]
-    F --> SC[Scribe entity extraction<br/>asr/scribe.py]
+    F --> SC[Scribe entity extraction<br/>asr/scribe.py<br/>LLM-assisted, regex floor]
     SC --> O{LangGraph orchestrator<br/>agents/graph.py}
-    O --> R[Hybrid RAG retrieve<br/>BM25 + TF-IDF + RRF<br/>WHO IMCI / DGHS / Formulary]
+    O --> R[Hybrid RAG retrieve<br/>BM25 + TF-IDF + dense embeddings, RRF<br/>WHO IMCI / DGHS / Formulary]
     O --> T[Deterministic tools<br/>IMCI danger-sign + med-safety]
     R --> C[Critic — suppress un-grounded,<br/>re-retrieve on a gap]
     T --> C
     C --> DX[Differential agent]
     DX --> CP[Completeness agent]
-    CP --> SY[Synthesize: cited Bangla]
-    SY --> DOC[Doctor: cited prompts + SOAP note]
+    CP --> SY[Synthesize: cited Bangla<br/>LLM narration, guarded]
+    SY --> DA[Doctor co-pilot: red flags ·<br/>questions to ask · cautions · differential]
     SY --> PT[Patient phone: spoken Bangla summary]
 ```
 
@@ -70,7 +84,7 @@ cd backend && python eval/run_eval.py
 | Orchestrator grounding / citation | **3/3 (100%)** |
 | Honest refusal on insufficient data | **1/1 (100%)** |
 
-Unit tests: **27/27** (`safety` 9 · `rag` 6 · `asr` 4 · `agents` 4 · `sessions` 4) — `python backend/tests/test_*.py`.
+Unit tests: **29/29** (`safety` 9 · `rag` 6 · `asr` 4 · `agents` 6 · `sessions` 4) — `python backend/tests/test_*.py`. All numbers are measured on the keyless deterministic path, so they hold for any judge's cold visit.
 
 ## Routes
 
@@ -88,10 +102,11 @@ Unit tests: **27/27** (`safety` 9 · `rag` 6 · `asr` 4 · `agents` 4 · `sessio
 |---|---|
 | Frontend | Next.js 14 + Tailwind on Vercel |
 | Backend | Python FastAPI on Render |
-| Agents | LangGraph orchestrator (intake → retrieve → tools → critic → differential → completeness → synthesize) |
-| Retrieval | **Dependency-free hybrid: BM25 + TF-IDF cosine + Reciprocal Rank Fusion** over a curated, cited WHO IMCI / DGHS STG / National Formulary corpus |
+| Agents | LangGraph orchestrator (intake → retrieve → tools → critic → differential → completeness → synthesize) + doctor co-pilot aggregation |
+| Scribe | **GPT-4o-mini structured extraction** (key-optional) merged over a lexicon/regex floor |
+| Retrieval | Hybrid **BM25 + TF-IDF + OpenAI dense embeddings (key-optional), RRF-fused** over a curated, cited WHO IMCI / DGHS STG / National Formulary corpus |
 | ASR / TTS | **Browser Web Speech API** (`bn-BD`) — keyless; with a typed/seeded fallback |
-| LLM | Key-optional Bangla **narration only** — never the high-stakes decision; deterministic template by default |
+| LLM | OpenAI **GPT-4o-mini** (key-optional) for extraction + Bangla **narration only** — never the high-stakes decision; deterministic fallbacks throughout |
 | Safety core | Deterministic WHO IMCI danger-sign tree + drug allergy/interaction/duplication engine |
 | Live sync | Short HTTP polling (~3s) between the two devices' views |
 
@@ -102,6 +117,7 @@ Unit tests: **27/27** (`safety` 9 · `rag` 6 · `asr` 4 · `agents` 4 · `sessio
 cd backend
 python -m venv .venv && source .venv/Scripts/activate   # Windows; use bin/activate on macOS/Linux
 pip install -r requirements.txt
+cp .env.example .env                                     # optional: paste OPENAI_API_KEY to enable the AI layer
 uvicorn app.main:app --reload --port 8000               # docs at http://localhost:8000/docs
 ```
 
@@ -119,7 +135,7 @@ Open `http://localhost:3000/room` in Chrome → **Run demo consultation**, or sc
 
 ## Roadmap (architected, not yet built)
 
-WebSocket real-time (today: HTTP polling) · speaker diarization (today: time + lexical-overlap fusion) · dense retriever / BGE-M3 (the `retriever.search()` contract is the swap-in point) · durable longitudinal multi-visit record (today: in-memory session + on-device summary) · fine-tuned Bangla medical ASR · corpus beyond pediatric ARI · clinician co-sign at scale.
+WebSocket real-time (today: HTTP polling) · speaker diarization (today: time + lexical-overlap fusion) · self-hosted dense retriever / BGE-M3 (today: OpenAI embeddings, key-optional) · durable longitudinal multi-visit record (today: in-memory session + on-device summary) · fine-tuned Bangla medical ASR · corpus beyond pediatric ARI · clinician co-sign at scale.
 
 ## Docs
 

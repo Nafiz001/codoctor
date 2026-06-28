@@ -1,8 +1,12 @@
-"""Dependency-free hybrid retriever: BM25 (lexical) + TF-IDF cosine (vector),
+"""Hybrid retriever: BM25 (lexical) + TF-IDF cosine + optional dense embeddings,
 fused with Reciprocal Rank Fusion.
 
-Pure Python so it deploys on any free tier and starts instantly. The dense side
-is a swap-in point for BGE-M3 in production — the `search()` contract is stable.
+The BM25 + TF-IDF core is pure Python — it deploys on any free tier, starts
+instantly, and runs with no key. When `OPENAI_API_KEY` is configured a third,
+*semantic* ranker is added: the corpus is embedded once (cached) and each query
+is embedded per request, so a Bangla query can find an English guideline that
+means the same thing even with zero shared tokens. With no key the dense ranker
+is simply absent and behaviour is identical to the original.
 """
 
 import math
@@ -10,6 +14,7 @@ import re
 from collections import defaultdict
 
 from .corpus import CORPUS
+from .embeddings import cosine as dense_cosine, embed_available, embed_texts
 from .synonyms import expand_query
 
 _TOKEN = re.compile(r"[a-z0-9]+|[ঀ-৿]+")
@@ -55,6 +60,36 @@ class HybridRetriever:
             self.doc_vec.append(vec)
             self.doc_norm.append(norm)
 
+        # Dense embeddings are computed lazily on first search if a key exists.
+        # `_dense_state`: None = not tried, list = ready, False = disabled.
+        self._dense_docs = None
+
+    def _dense_doc_vectors(self):
+        """Embed the corpus once and cache. Returns the list of vectors, or
+        False if embeddings are unavailable / failed (disabled for this process)."""
+        if self._dense_docs is not None:
+            return self._dense_docs
+        if not embed_available():
+            self._dense_docs = False
+            return False
+        vecs = embed_texts(
+            [d["text"] + " " + " ".join(d.get("tags", [])) for d in self.docs]
+        )
+        # Disable permanently on failure so we don't retry the API every request.
+        self._dense_docs = vecs if vecs and len(vecs) == self.N else False
+        return self._dense_docs
+
+    def _dense_scores(self, query: str) -> list:
+        """Per-doc semantic similarity, or an all-zero list if dense is off."""
+        doc_vecs = self._dense_doc_vectors()
+        if not doc_vecs:
+            return [0.0] * self.N
+        q = embed_texts([query])
+        if not q:
+            return [0.0] * self.N
+        qv = q[0]
+        return [dense_cosine(qv, dv) for dv in doc_vecs]
+
     def _bm25(self, q_tokens: list) -> list:
         scores = [0.0] * self.N
         for i in range(self.N):
@@ -92,17 +127,23 @@ class HybridRetriever:
 
         bm25 = self._bm25(toks)
         cosine = self._cosine(toks)
+        dense = self._dense_scores(query)  # semantic; all-zero if no key
+        dense_on = any(dense)
 
         bm25_rank = sorted(range(self.N), key=lambda i: bm25[i], reverse=True)
         cos_rank = sorted(range(self.N), key=lambda i: cosine[i], reverse=True)
 
-        # Reciprocal Rank Fusion
+        # Reciprocal Rank Fusion across the available rankers.
         C = 60
         rrf: dict = defaultdict(float)
         for r, i in enumerate(bm25_rank):
             rrf[i] += 1.0 / (C + r + 1)
         for r, i in enumerate(cos_rank):
             rrf[i] += 1.0 / (C + r + 1)
+        if dense_on:
+            dense_rank = sorted(range(self.N), key=lambda i: dense[i], reverse=True)
+            for r, i in enumerate(dense_rank):
+                rrf[i] += 1.0 / (C + r + 1)
 
         ranked = sorted(range(self.N), key=lambda i: rrf[i], reverse=True)
         results = []
@@ -118,5 +159,6 @@ class HybridRetriever:
                 "score": round(rrf[i], 4),
                 "bm25": round(bm25[i], 3),
                 "cosine": round(cosine[i], 3),
+                "dense": round(dense[i], 3),
             })
         return results

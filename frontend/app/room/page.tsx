@@ -22,6 +22,9 @@ import {
   AlertTriangle,
   PlayCircle,
   Languages,
+  Siren,
+  HelpCircle,
+  Search,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { TONES } from "@/components/tone";
@@ -39,6 +42,7 @@ import {
   API_URL,
   type SessionState,
   type SessionAnalyzeResult,
+  type DoctorAlerts,
 } from "@/lib/api";
 import type { Tone } from "@/lib/demo-data";
 
@@ -609,6 +613,8 @@ function RoomResult({ result }: { result: SessionAnalyzeResult }) {
         </span>
       </div>
 
+      {a.doctor_alerts && <DoctorHelper alerts={a.doctor_alerts} />}
+
       <FusedTranscript segments={result.fused_transcript} />
 
       {imci && (
@@ -681,6 +687,117 @@ function RoomResult({ result }: { result: SessionAnalyzeResult }) {
             {a.citations.map((c, i) => (
               <CiteChip key={i} c={c} />
             ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The "second pair of eyes" — what the doctor might miss, surfaced up front:
+ *  red flags (danger signs + drug-allergy blocks), questions still to ask, and
+ *  conditions to consider. Every item carries its guideline citation. */
+function DoctorHelper({ alerts }: { alerts: DoctorAlerts }) {
+  const { red_flags, ask_these, cautions, consider } = alerts;
+  const nothing =
+    red_flags.length === 0 &&
+    ask_these.length === 0 &&
+    cautions.length === 0 &&
+    consider.length === 0;
+  if (nothing) return null;
+
+  return (
+    <div className="card overflow-hidden p-0">
+      <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/70 px-5 py-3">
+        <Stethoscope className="h-4 w-4 text-brand-600" />
+        <span className="font-semibold text-ink">Doctor co-pilot</span>
+        <span className="text-xs text-ink-faint">— a second pair of eyes</span>
+        {red_flags.length > 0 && (
+          <span className="chip ml-auto bg-red-600 text-white ring-red-600">
+            <Siren className="h-3 w-3" /> {red_flags.length} red flag
+            {red_flags.length === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-4 px-5 py-4">
+        {red_flags.length > 0 && (
+          <div className="space-y-2">
+            {red_flags.map((f, i) => (
+              <div
+                key={i}
+                className="rounded-xl bg-red-50 p-3.5 ring-1 ring-inset ring-red-200"
+              >
+                <div className="flex items-center gap-2">
+                  <Siren className="h-4 w-4 shrink-0 text-red-600" />
+                  <span className="font-bold text-red-800">{f.title}</span>
+                  <span className="chip ml-auto bg-white text-red-700 ring-red-200">
+                    {f.kind.replace(/_/g, " ")}
+                  </span>
+                </div>
+                {f.detail && (
+                  <p className="mt-1.5 text-sm text-red-900/90">{f.detail}</p>
+                )}
+                {f.citation && <CiteChip c={f.citation} />}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {ask_these.length > 0 && (
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-amber-700">
+              <HelpCircle className="h-3.5 w-3.5" /> Still to ask / check
+            </div>
+            <ul className="mt-2 space-y-1.5">
+              {ask_these.map((q, i) => (
+                <li
+                  key={i}
+                  className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-inset ring-amber-200"
+                >
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                  <span>{q.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {cautions.length > 0 && (
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-ink-muted">
+              <Pill className="h-3.5 w-3.5" /> Medication cautions
+            </div>
+            <ul className="mt-2 space-y-1.5">
+              {cautions.map((c, i) => (
+                <li
+                  key={i}
+                  className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-ink-soft ring-1 ring-inset ring-slate-200"
+                >
+                  <strong className="font-semibold text-ink">{c.title}</strong>
+                  {c.detail ? ` — ${c.detail}` : ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {consider.length > 0 && (
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-ink-muted">
+              <Search className="h-3.5 w-3.5" /> Consider (differential)
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {consider.map((c, i) => (
+                <span
+                  key={i}
+                  title={c.rationale}
+                  className="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 ring-1 ring-inset ring-brand-200"
+                >
+                  {c.condition}
+                </span>
+              ))}
+            </div>
           </div>
         )}
       </div>
