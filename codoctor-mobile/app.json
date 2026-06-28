@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Codoctor",
+    "slug": "codoctor-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "backgroundColor": "#FAF1EB",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.codoctor.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Camera is needed to scan the doctor's QR code to join a consultation session.",
+        "NSMicrophoneUsageDescription": "Microphone is needed to capture audio during the consultation so both devices can contribute to a high-quality transcript."
+      }
+    },
+    "android": {
+      "package": "com.codoctor.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#B85C38",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Camera is needed to scan the doctor's QR code.",
+          "microphonePermission": "Microphone is needed to capture audio during the consultation.",
+          "recordAudioAndroid": true
+        }
+      ],
+      "expo-audio"
+    ]
+  }
+}

@@ -9,7 +9,10 @@ Run locally:
 Interactive docs at http://localhost:8000/docs
 """
 
-from fastapi import FastAPI, HTTPException
+import io
+import os
+
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 
 from .models import (
@@ -176,6 +179,49 @@ def consult_from_transcript(req: FromTranscriptRequest) -> dict:
         [s.model_dump() for s in req.device_b],
         age_months=req.age_months,
     )
+
+
+# --- Audio transcription (mobile devices upload chunks here) ----------------
+
+@app.post("/transcribe", tags=["asr"])
+async def transcribe_audio(
+    file: UploadFile = File(...),
+    language: str = Form(default="bn"),
+) -> dict:
+    """Transcribe an audio chunk from a mobile device (m4a/mp4/wav) using
+    OpenAI Whisper. Returns {text, conf, language}.
+
+    If OPENAI_API_KEY is not set the endpoint returns a 503 so the mobile
+    can fall back to manual text input gracefully.
+    """
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Speech recognition not configured on this server (OPENAI_API_KEY missing).",
+        )
+
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=api_key)
+
+        audio_bytes = await file.read()
+        # Whisper needs a filename to infer the format
+        filename = file.filename or "audio.m4a"
+        audio_buffer = io.BytesIO(audio_bytes)
+        audio_buffer.name = filename
+
+        result = await client.audio.transcriptions.create(
+            model="whisper-1",
+            file=(filename, audio_buffer, file.content_type or "audio/m4a"),
+            language=language,
+        )
+        text = (result.text or "").strip()
+        return {"text": text, "conf": 0.85, "language": language}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
 
 
 # --- Live session: the real two-device flow joined by a QR code ------------
