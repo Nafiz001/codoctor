@@ -214,7 +214,6 @@ async def transcribe_audio(
         result = await client.audio.transcriptions.create(
             model="whisper-1",
             file=(filename, audio_buffer, file.content_type or "audio/m4a"),
-            language=language,
         )
         text = (result.text or "").strip()
         return {"text": text, "conf": 0.85, "language": language}
