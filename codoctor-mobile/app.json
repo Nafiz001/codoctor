@@ -15,8 +15,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.codoctor.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Camera is needed to scan the doctor's QR code to join a consultation session.",
-        "NSMicrophoneUsageDescription": "Microphone is needed to capture audio during the consultation so both devices can contribute to a high-quality transcript."
+        "NSCameraUsageDescription": "Camera is used to scan the doctor's QR code and to photograph previous medical reports.",
+        "NSMicrophoneUsageDescription": "Microphone is needed to capture audio during the consultation so both devices can contribute to a high-quality transcript.",
+        "NSPhotoLibraryUsageDescription": "Photo access lets you attach a previous prescription or lab report so the AI can read your history."
       }
     },
     "android": {
@@ -44,7 +45,14 @@
           "recordAudioAndroid": true
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Attach a previous prescription or lab report so the AI can read your history.",
+          "cameraPermission": "Photograph a paper report so the AI can read it."
+        }
+      ]
     ]
   }
 }

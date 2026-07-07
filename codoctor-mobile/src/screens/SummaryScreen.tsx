@@ -278,10 +278,10 @@ export default function SummaryScreen({ navigation, route }: Props) {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.homeBtn}
-            onPress={() => navigation.navigate('Main')}
+            onPress={() => navigation.navigate('Role')}
           >
             <Ionicons name="chevron-back" size={16} color={colors.inkSoft} />
-            <Text style={styles.homeBtnText}>Back to Home</Text>
+            <Text style={styles.homeBtnText}>Done</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

@@ -223,6 +223,131 @@ async def transcribe_audio(
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
 
 
+# --- Previous medical report extraction (photo / PDF) -----------------------
+
+_REPORT_PROMPT = (
+    "You are a clinical assistant reading a patient's previous medical document "
+    "(a prescription, lab report, or discharge slip) that may be in Bangla, "
+    "English, or both, and may be handwritten. Extract only what is clearly "
+    "present. Respond as compact JSON with exactly these keys: "
+    '"conditions" (array of diagnoses/problems), '
+    '"medications" (array of drug names, generic if possible), '
+    '"allergies" (array), '
+    '"summary_en" (one short plain sentence), '
+    '"summary_bn" (the same short sentence in simple Bangla). '
+    "Use empty arrays/strings when nothing is found. Do not invent anything."
+)
+
+
+def _structure_report_text(client, text: str) -> dict:
+    """Ask the LLM to structure already-extracted document text."""
+    import json
+
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": _REPORT_PROMPT},
+            {"role": "user", "content": f"Document text:\n\n{text[:6000]}"},
+        ],
+    )
+    return json.loads(resp.choices[0].message.content or "{}")
+
+
+@app.post("/extract-report", tags=["asr"])
+async def extract_report(
+    file: UploadFile = File(...),
+) -> dict:
+    """Extract structured medical info from a patient's previous report.
+
+    Accepts a photo (jpg/png — e.g. the doctor photographs a paper slip in the
+    field) or a PDF. Uses OpenAI vision for images and text extraction for PDFs.
+    Returns {conditions, medications, allergies, summary_en, summary_bn, source}.
+    503 if OPENAI_API_KEY is not configured so the app can degrade gracefully.
+    """
+    import base64
+    import json
+
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Report reading not configured on this server (OPENAI_API_KEY missing).",
+        )
+
+    data = await file.read()
+    content_type = (file.content_type or "").lower()
+    name = (file.filename or "").lower()
+    is_pdf = "pdf" in content_type or name.endswith(".pdf")
+
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=api_key)
+
+        if is_pdf:
+            # Text-based PDF → pull text, then structure it.
+            try:
+                import io as _io
+                from pypdf import PdfReader
+
+                reader = PdfReader(_io.BytesIO(data))
+                text = "\n".join((p.extract_text() or "") for p in reader.pages)
+            except Exception:
+                text = ""
+            if not text.strip():
+                raise HTTPException(
+                    status_code=422,
+                    detail="Could not read text from this PDF. Try a photo of the report instead.",
+                )
+            result = _structure_report_text(client, text)
+            source = "pdf"
+        else:
+            # Image → vision extraction.
+            mime = content_type if content_type.startswith("image/") else "image/jpeg"
+            b64 = base64.b64encode(data).decode()
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": _REPORT_PROMPT},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Extract from this document image."},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{mime};base64,{b64}"},
+                            },
+                        ],
+                    },
+                ],
+            )
+            result = json.loads(resp.choices[0].message.content or "{}")
+            source = "image"
+
+        # Normalize the shape so the client can rely on it.
+        def _as_list(v):
+            if isinstance(v, list):
+                return [str(x).strip() for x in v if str(x).strip()]
+            if isinstance(v, str) and v.strip():
+                return [v.strip()]
+            return []
+
+        return {
+            "conditions": _as_list(result.get("conditions")),
+            "medications": _as_list(result.get("medications")),
+            "allergies": _as_list(result.get("allergies")),
+            "summary_en": str(result.get("summary_en") or "").strip(),
+            "summary_bn": str(result.get("summary_bn") or "").strip(),
+            "source": source,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Report extraction failed: {exc}") from exc
+
+
 # --- Live session: the real two-device flow joined by a QR code ------------
 
 

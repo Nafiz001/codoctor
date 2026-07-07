@@ -17,9 +17,9 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fontSize, radius, spacing, shadow } from '../lib/theme';
-import { API_URL, joinSession, getSession, appendTranscript, type SessionState, type PatientSummary } from '../lib/api';
-import { PATIENT_SUMMARY } from '../lib/demo-data';
+import { API_URL, joinSession, getSession, appendTranscript, type SessionState, type PatientSummary, type ReportExtract } from '../lib/api';
 import { useChunkedRecording } from '../lib/useRecording';
+import { captureReportPhoto, pickReportImage, pickReportPdf } from '../lib/pickReport';
 import TopAppBar from '../components/TopAppBar';
 import type { RootStackParamList } from '../../App';
 
@@ -39,6 +39,8 @@ export default function PatientScreen({ navigation: navProp }: Props) {
   const [session, setSession] = useState<SessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [utteranceCount, setUtteranceCount] = useState(0);
+  const [report, setReport] = useState<ReportExtract | null>(null);
+  const [attaching, setAttaching] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sidRef = useRef<string | null>(null);
   sidRef.current = sessionId;
@@ -111,8 +113,13 @@ export default function PatientScreen({ navigation: navProp }: Props) {
       setScanned(true);
 
       try {
-        const url = new URL(data.startsWith('http') ? data : `https://x.com/${data}`);
-        const sid = url.searchParams.get('s');
+        // Accept any QR that carries the session id: a deep link
+        // (codoctor://join?s=ID), a URL (…?s=ID), or the bare id itself.
+        const raw = data.trim();
+        const match = raw.match(/[?&]s=([^&\s]+)/);
+        const sid = match
+          ? decodeURIComponent(match[1])
+          : (raw && !/\s/.test(raw) && !raw.includes('://') && raw.length <= 64 ? raw : null);
         if (sid) {
           setSessionId(sid);
           setMode('connecting');
@@ -139,10 +146,30 @@ export default function PatientScreen({ navigation: navProp }: Props) {
     [scanned, navigation]
   );
 
-  const openDemoSummary = () => {
-    navigation.navigate('Summary', {
-      summary: PATIENT_SUMMARY as PatientSummary,
-    });
+  // Upload a previous report; if already in a session, forward a concise note
+  // to the doctor so it informs the live analysis.
+  const runAttach = async (kind: 'camera' | 'gallery' | 'pdf') => {
+    setAttaching(true);
+    try {
+      const res =
+        kind === 'camera' ? await captureReportPhoto()
+        : kind === 'gallery' ? await pickReportImage()
+        : await pickReportPdf();
+      if (res.extract) {
+        setReport(res.extract);
+        const sid = sidRef.current;
+        if (sid) {
+          const parts = [
+            res.extract.summary_bn || res.extract.summary_en,
+            res.extract.medications.length ? `আগের ওষুধ: ${res.extract.medications.join(', ')}` : '',
+            res.extract.allergies.length ? `অ্যালার্জি: ${res.extract.allergies.join(', ')}` : '',
+          ].filter(Boolean);
+          if (parts.length) await appendTranscript(sid, 'patient', parts.join('। '), 0.99);
+        }
+      }
+    } finally {
+      setAttaching(false);
+    }
   };
 
   // Request camera permission
@@ -341,24 +368,35 @@ export default function PatientScreen({ navigation: navProp }: Props) {
                 <Ionicons name="arrow-forward" size={18} color={colors.white} />
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnSecondary]}
-                onPress={openDemoSummary}
-                activeOpacity={0.85}
-              >
-                <View style={[styles.actionBtnIcon, styles.actionBtnIconDark]}>
-                  <MaterialCommunityIcons name="file-document-outline" size={22} color={colors.brand600} />
+              <View style={styles.uploadCard}>
+                <Text style={styles.uploadTitle}>Upload previous reports</Text>
+                <Text style={styles.uploadSub}>
+                  Add an old prescription or lab report — the AI reads it so the
+                  doctor sees your history.
+                </Text>
+                <View style={styles.uploadRow}>
+                  <UploadBtn icon="camera" label="Photo" onPress={() => runAttach('camera')} disabled={attaching} />
+                  <UploadBtn icon="image" label="Gallery" onPress={() => runAttach('gallery')} disabled={attaching} />
+                  <UploadBtn icon="document-text" label="PDF" onPress={() => runAttach('pdf')} disabled={attaching} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.actionBtnTitle, { color: colors.ink }]}>
-                    View Demo Summary
-                  </Text>
-                  <Text style={[styles.actionBtnSub, { color: colors.inkMuted }]}>
-                    See the scripted patient record
-                  </Text>
-                </View>
-                <Ionicons name="arrow-forward" size={18} color={colors.inkMuted} />
-              </TouchableOpacity>
+                {attaching && (
+                  <View style={styles.uploadStatus}>
+                    <ActivityIndicator size="small" color={colors.brand500} />
+                    <Text style={styles.uploadStatusText}>Reading your report…</Text>
+                  </View>
+                )}
+                {report && (
+                  <View style={styles.reportResult}>
+                    {report.summary_bn ? <Text style={styles.reportResultBn}>{report.summary_bn}</Text> : null}
+                    {report.medications.length ? (
+                      <Text style={styles.reportResultLine}>ওষুধ: {report.medications.join(', ')}</Text>
+                    ) : null}
+                    {report.allergies.length ? (
+                      <Text style={styles.reportResultLine}>অ্যালার্জি: {report.allergies.join(', ')}</Text>
+                    ) : null}
+                  </View>
+                )}
+              </View>
             </View>
           )}
 
@@ -407,6 +445,22 @@ function DeviceChip({ label, connected }: { label: string; connected: boolean })
       />
       <Text style={chipStyles.label}>{label}</Text>
     </View>
+  );
+}
+
+function UploadBtn({ icon, label, onPress, disabled }: {
+  icon: string; label: string; onPress: () => void; disabled?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[uploadStyles.btn, disabled && { opacity: 0.5 }]}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.85}
+    >
+      <Ionicons name={icon as any} size={20} color={colors.brand600} />
+      <Text style={uploadStyles.btnLabel}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -685,6 +739,47 @@ const styles = StyleSheet.create({
   },
 
   infoCards: { gap: spacing.md, marginTop: spacing.sm },
+
+  // Upload previous reports
+  uploadCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.slate200,
+    padding: spacing.base,
+    gap: spacing.sm,
+    ...shadow.sm,
+  },
+  uploadTitle: { fontSize: fontSize.base, fontWeight: '700', color: colors.ink },
+  uploadSub: { fontSize: fontSize.xs, color: colors.inkMuted, lineHeight: 17 },
+  uploadRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 4 },
+  uploadStatus: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 4 },
+  uploadStatusText: { fontSize: fontSize.sm, color: colors.inkMuted },
+  reportResult: {
+    backgroundColor: colors.slate50,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.slate200,
+    padding: spacing.md,
+    gap: 4,
+    marginTop: 4,
+  },
+  reportResultBn: { fontSize: fontSize.sm, color: colors.ink, lineHeight: 20 },
+  reportResultLine: { fontSize: fontSize.xs, color: colors.inkSoft },
+});
+
+const uploadStyles = StyleSheet.create({
+  btn: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: colors.brand50,
+    borderWidth: 1,
+    borderColor: colors.brand200,
+  },
+  btnLabel: { fontSize: fontSize.xs, fontWeight: '700', color: colors.brand600 },
 });
 
 const chipStyles = StyleSheet.create({

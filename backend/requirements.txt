@@ -9,3 +9,5 @@ python-multipart>=0.0.9
 # the moment OPENAI_API_KEY is present in the environment / backend/.env.
 openai>=1.40
 python-dotenv>=1.0
+# Text extraction from patient-uploaded PDF reports (/extract-report).
+pypdf>=4.0

@@ -136,6 +136,48 @@ export function warmBackend(): void {
   fetch(`${API_URL}/health`).catch(() => {});
 }
 
+export interface ReportExtract {
+  conditions: string[];
+  medications: string[];
+  allergies: string[];
+  summary_en: string;
+  summary_bn: string;
+  source: string;
+}
+
+/**
+ * Upload a previous medical report (photo or PDF) so the backend can extract
+ * conditions / medications / allergies to inform the consultation.
+ * Returns null on any failure (no key, unreadable file, network) so the caller
+ * can carry on without the report.
+ */
+export async function extractReport(
+  uri: string,
+  mimeType = 'image/jpeg',
+  name = 'report.jpg'
+): Promise<ReportExtract | null> {
+  if (!API_URL) return null;
+  try {
+    const formData = new FormData();
+    formData.append('file', { uri, name, type: mimeType } as unknown as Blob);
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), 60000);
+    try {
+      const res = await fetch(`${API_URL}/extract-report`, {
+        method: 'POST',
+        body: formData,
+        signal: ctrl.signal,
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as ReportExtract;
+    } finally {
+      clearTimeout(id);
+    }
+  } catch {
+    return null;
+  }
+}
+
 export async function createSession(patient: {
   allergies?: string[];
   current_meds?: string[];
