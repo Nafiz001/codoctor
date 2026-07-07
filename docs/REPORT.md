@@ -7,7 +7,7 @@
 |---|---|
 | **Team** | Logarithm |
 | **Live demo** | https://codoctor.vercel.app — `/room` (live QR session + doctor co-pilot), `/doctor` (scripted cockpit), `/live` (voice quick-check), `/patient` |
-| **Backend API** | https://codoctor-api.onrender.com/docs |
+| **Backend API** | https://codoctor-api-afdkbhe8d4bpffb5.centralindia-01.azurewebsites.net/docs |
 | **Repository** | https://github.com/Nafiz001/codoctor |
 | **Demo video** | _‹link›_ |
 
@@ -71,7 +71,7 @@ The design principle throughout: **AI owns everything ambiguous — speech, mean
    · cautions · differential) + editable note │
 ```
 
-**Stack.** Frontend: Next.js 14 + Tailwind on **Vercel**. Backend: **FastAPI** + **LangGraph** on **Render**. Both deployed at public URLs; the frontend calls the backend live and degrades gracefully to a deterministic scripted demo if the (free-tier) backend is asleep.
+**Stack.** Frontend: Next.js 14 + Tailwind on **Vercel**. Backend: **FastAPI** + **LangGraph** on **Azure App Service** (Always On — no cold start). Both deployed at public URLs; the frontend calls the backend live and degrades gracefully to a deterministic scripted demo if the backend is ever unreachable.
 
 ---
 

@@ -1,7 +1,7 @@
 // Codoctor API client — adapted from the web app for React Native fetch
 // Falls back to scripted demo mode when the backend is unavailable
 
-export const API_URL = 'https://codoctor-api.onrender.com';
+export const API_URL = 'https://codoctor-api-afdkbhe8d4bpffb5.centralindia-01.azurewebsites.net';
 
 export interface Citation {
   source: string;

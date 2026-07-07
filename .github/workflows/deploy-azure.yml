@@ -1,0 +1,52 @@
+name: deploy-azure
+
+# Deploys the Codoctor FastAPI backend to Azure App Service (Linux, Python).
+#
+# One-time setup (see README "Deploy the backend (Azure)"):
+#   1. Create the Web App:
+#        az webapp up --name codoctor-api --runtime "PYTHON:3.12" \
+#          --sku B1 --location southeastasia
+#      (B1 is the cheapest tier that supports Always On.)
+#   2. Enable Always On (no cold start) + let Oryx build the deps:
+#        az webapp config set --name codoctor-api -g <rg> --always-on true
+#        az webapp config appsettings set --name codoctor-api -g <rg> \
+#          --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true \
+#          OPENAI_API_KEY=<optional-key>
+#   3. Set the startup command:
+#        az webapp config set --name codoctor-api -g <rg> \
+#          --startup-file "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+#   4. Download the publish profile and paste it into a repo secret named
+#        AZURE_WEBAPP_PUBLISH_PROFILE
+#      (App Service → your app → "Get publish profile").
+#
+# CI/CD: auto-deploys on push to main when backend code changes, plus a manual
+# "Run workflow" button. Both need the AZURE_WEBAPP_PUBLISH_PROFILE secret set
+# (step 4 of the one-time setup above) — until it's set, runs will fail loudly.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-azure.yml"
+  workflow_dispatch: {}
+
+env:
+  AZURE_WEBAPP_NAME: codoctor-api # must match the app you created above
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Deploy backend to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: backend

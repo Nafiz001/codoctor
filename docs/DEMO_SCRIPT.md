@@ -3,7 +3,7 @@
 **Goal:** judges watch the video first — so the **first 30 seconds must be the wow-moment**, then the problem, then the live product, then the proof.
 
 **Before recording (critical):**
-1. **Pre-warm the backend** — open https://codoctor-api.onrender.com/health until it returns `{"status":"ok"}` (free tier sleeps ~15 min).
+1. **Check the backend is up** — open https://codoctor-api-afdkbhe8d4bpffb5.centralindia-01.azurewebsites.net/health; it returns `{"status":"ok"}` immediately (Azure App Service Always On — no cold start).
 2. Open https://codoctor.vercel.app in Chrome (for Bangla voice). Grant mic permission for `/live`.
 3. Record at the live URL (not localhost). Add captions/subtitles for the Bangla. Keep under 5:00.
 

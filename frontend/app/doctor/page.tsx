@@ -709,8 +709,7 @@ function LiveAnalysisCard({
 
       {state === "loading" && (
         <p className="mt-3 text-sm text-ink-muted">
-          Contacting the Codoctor backend… a sleeping free-tier server can take ~30s
-          to wake.
+          Contacting the Codoctor backend…
         </p>
       )}
 
@@ -805,7 +804,7 @@ function LiveAnalysisCard({
         <div className="mt-3 space-y-3">
           <p className="text-sm text-ink-muted">
             {API_URL
-              ? "Couldn't reach the live backend — the cards above are the scripted demo. The free-tier server may be asleep."
+              ? "Couldn't reach the live backend — the cards above are the scripted demo. Please try again in a moment."
               : "Backend not connected — the cards above are the scripted demo. Set NEXT_PUBLIC_API_URL to call the live agents."}
           </p>
           {API_URL && (

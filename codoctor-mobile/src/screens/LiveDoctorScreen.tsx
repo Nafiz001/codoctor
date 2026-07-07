@@ -450,7 +450,7 @@ function SetupCard({
           <Text style={styles.bigBtnText}>🔗 Create Session</Text>
         )}
         {!creating && (
-          <Text style={styles.bigBtnSub}>Wakes backend if sleeping (~30s first time)</Text>
+          <Text style={styles.bigBtnSub}>Starts a live QR-joined consultation</Text>
         )}
       </TouchableOpacity>
     </View>
