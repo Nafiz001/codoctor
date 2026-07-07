@@ -23,7 +23,7 @@ from ..safety.imci import classify_ari
 from ..safety.medsafety import check_medication
 from .llm import narrate, llm_available
 from .differential import differential as run_differential
-from .completeness import completeness as run_completeness
+from .completeness import completeness as run_completeness, next_questions
 
 RETRIEVER = HybridRetriever()
 MAX_RETRIEVALS = 2
@@ -238,12 +238,30 @@ def _no_new_drug(polished: str, answer_en: str, meds: list) -> bool:
     return True
 
 
+def _assessment_confidence(enc: dict, imci: dict, missing: list) -> str:
+    """Calibrated confidence in the assessment — high only when a definitive
+    IMCI trigger is measured; low when the key datum to classify is missing."""
+    vitals = enc.get("vitals") or {}
+    rr = vitals.get("respiratory_rate")
+    if imci.get("refer"):
+        return "high"          # a measured danger sign / indrawing / stridor
+    if imci.get("fast_breathing"):
+        return "high"          # pneumonia off a measured respiratory rate
+    if rr is None and any(m["field"] == "respiratory_rate" for m in missing):
+        return "low"           # respiratory case but no rate → cannot exclude pneumonia
+    return "moderate"
+
+
 def synthesize(state: ConsultState) -> dict:
     enc = state.get("encounter", {}) or {}
     safety = state.get("safety", {}) or {}
     retrieved = state.get("retrieved", [])
+    completeness = state.get("completeness", {}) or {}
     imci = safety.get("imci", {})
     meds = safety.get("medication", [])
+
+    missing = next_questions(enc)
+    confidence = _assessment_confidence(enc, imci, missing)
 
     has_data = bool(
         enc.get("symptoms")
@@ -253,14 +271,19 @@ def synthesize(state: ConsultState) -> dict:
         or enc.get("chest_indrawing")
     )
     if not has_data:
+        # Targeted refusal — name the specific data needed, not a generic "unknown".
+        need_en = "; ".join(m["en"] for m in missing) or "record the child's symptoms"
+        need_bn = " ".join(m["bn"] for m in missing) or "শিশুর উপসর্গ লিখুন।"
         return {
             "refused": True,
-            "answer_en": "Not enough information was provided to assess this child. Use clinician judgment.",
-            "answer_bn": "এই শিশুর অবস্থা মূল্যায়নের জন্য যথেষ্ট তথ্য নেই। চিকিৎসকের বিবেচনা প্রয়োজন।",
+            "confidence": "insufficient",
+            "missing_data": missing,
+            "answer_en": f"Not enough to assess yet. To classify, please: {need_en}",
+            "answer_bn": f"মূল্যায়নের জন্য যথেষ্ট তথ্য নেই। অনুগ্রহ করে: {need_bn}",
             "citations": [],
             "trace": _trace(
                 state, "summary", "Synthesis",
-                "Insufficient grounded input — honest refusal.", "flag",
+                "Insufficient input — refusing, and naming exactly what's needed.", "flag",
             ),
         }
 
@@ -312,12 +335,17 @@ def synthesize(state: ConsultState) -> dict:
 
     return {
         "refused": False,
+        "confidence": confidence,
+        "missing_data": missing,
         "answer_en": answer_en,
         "answer_bn": answer_bn,
         "citations": cites,
         "trace": _trace(
             state, "summary", "Synthesis",
-            f"Composed a grounded answer with {len(cites)} citation(s).", "ok",
+            f"Composed a grounded answer with {len(cites)} citation(s); "
+            f"confidence {confidence}"
+            + (f", {len(missing)} datum(s) still recommended." if missing else "."),
+            "ok",
         ),
     }
 
@@ -435,6 +463,8 @@ def run_consultation(patient: dict, encounter: dict) -> dict:
     return {
         "grounded": final.get("grounded", False),
         "refused": final.get("refused", False),
+        "confidence": final.get("confidence", "moderate"),
+        "missing_data": final.get("missing_data", []),
         "answer_bn": final.get("answer_bn", ""),
         "answer_en": final.get("answer_en", ""),
         "citations": final.get("citations", []),

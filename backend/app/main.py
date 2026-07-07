@@ -26,13 +26,21 @@ from .models import (
     JoinRequest,
     TranscriptAppend,
     SessionAnalyzeRequest,
+    LivePromptRequest,
+    DoseRequest,
+    ReconcileRequest,
+    RREstimateRequest,
 )
 from .safety.imci import classify_ari
 from .safety.medsafety import check_medication
+from .safety.dosing import dose as compute_dose
+from .safety.reconcile import reconcile as reconcile_meds
 from .rag.retriever import HybridRetriever
-from .agents.graph import run_consultation
+from .agents.graph import run_consultation, doctor_alerts
+from .agents.completeness import next_questions
 from .asr.fusion import fuse, transcript_text
 from .asr.scribe import extract
+from .asr.rr import estimate_rr
 from .sessions import store as sessions
 from .sessions.summary import build_summary
 from .sessions.demo_seed import (
@@ -114,6 +122,59 @@ def assess_medication(check: MedicationCheck) -> dict:
         "findings": findings,
         "blocked": any(f["severity"] == "critical" for f in findings),
     }
+
+
+@app.post("/consult/live-prompts", tags=["agents"])
+def consult_live_prompts(req: LivePromptRequest) -> dict:
+    """Real-time co-pilot: from the conversation so far, return the guideline
+    questions the doctor has not asked yet, plus any danger sign already audible.
+    Called every few seconds during the consultation."""
+    enc = extract(req.transcript)
+    if req.age_months is not None:
+        enc["age_months"] = req.age_months
+    vitals = enc.get("vitals") or {}
+    imci = classify_ari(
+        age_months=enc.get("age_months", 36),
+        respiratory_rate=vitals.get("respiratory_rate"),
+        chest_indrawing=enc.get("chest_indrawing", False),
+        stridor=enc.get("stridor", False),
+        general_danger_signs=enc.get("general_danger_signs", []),
+    )
+    red_flags = []
+    if imci["refer"]:
+        red_flags.append({
+            "title": imci["classification"],
+            "detail": "; ".join(imci.get("reasons", [])) or imci.get("action", ""),
+            "citation": imci.get("citation"),
+        })
+    return {
+        "ask_these": next_questions(enc),
+        "red_flags": red_flags,
+        "extracted": enc,
+    }
+
+
+@app.post("/assess/dose", tags=["safety"])
+def assess_dose(req: DoseRequest) -> dict:
+    """Weight-based paediatric dose for a drug (deterministic)."""
+    return compute_dose(req.drug, req.weight_kg, req.age_months)
+
+
+@app.post("/assess/reconcile", tags=["safety"])
+def assess_reconcile(req: ReconcileRequest) -> dict:
+    """Reconcile a proposed prescription against current + previous-report meds."""
+    return reconcile_meds(
+        proposed=req.proposed,
+        allergies=req.allergies,
+        current_meds=req.current_meds,
+        past_meds=req.past_meds,
+    )
+
+
+@app.post("/estimate-rr", tags=["asr"])
+def estimate_respiratory_rate(req: RREstimateRequest) -> dict:
+    """Estimate breaths/min from a per-frame chest breathing signal."""
+    return estimate_rr(req.samples, req.fps)
 
 
 @app.post("/rag/search", tags=["rag"])

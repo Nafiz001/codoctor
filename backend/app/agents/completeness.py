@@ -16,6 +16,41 @@ RECOMMENDED = [
     ("danger_signs", "check the general danger signs (drink/feed, vomiting, convulsions, consciousness)"),
 ]
 
+# Bilingual phrasing for a real-time prompt the doctor sees mid-consultation.
+ASKS = {
+    "respiratory_rate": (
+        "Count the breaths in one full minute.",
+        "এক মিনিটে শ্বাসের হার গুনুন।",
+    ),
+    "chest_indrawing": (
+        "Look for lower chest-wall indrawing.",
+        "বুকের নিচের অংশ টেনে শ্বাস নিচ্ছে কিনা দেখুন।",
+    ),
+    "stridor": (
+        "Listen for stridor in a calm child.",
+        "শান্ত অবস্থায় স্ট্রিডর (শ্বাসে শোঁ শোঁ শব্দ) আছে কিনা শুনুন।",
+    ),
+    "danger_signs": (
+        "Check the general danger signs (able to drink, vomiting, convulsions, consciousness).",
+        "সাধারণ বিপদ-চিহ্ন যাচাই করুন (পান করতে পারছে কিনা, বমি, খিঁচুনি, অচেতন)।",
+    ),
+}
+
+
+def next_questions(encounter: Dict) -> list:
+    """The guideline-recommended IMCI checks not yet positively confirmed —
+    phrased as short bilingual prompts. Drives the live 'ask this next' co-pilot
+    and the targeted-refusal message. Empty when the assessment is complete or
+    the case isn't a respiratory one."""
+    comp = completeness(encounter)
+    pending = set(comp.get("also_check", []))
+    out = []
+    for key, label in RECOMMENDED:
+        if label in pending and key in ASKS:
+            en, bn = ASKS[key]
+            out.append({"field": key, "en": en, "bn": bn, "citation": comp["citation"]})
+    return out
+
 
 def completeness(encounter: Dict) -> Dict:
     vitals = encounter.get("vitals") or {}

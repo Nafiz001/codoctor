@@ -47,9 +47,18 @@ export interface DifferentialItem {
   citation: Citation;
 }
 
+export interface MissingDatum {
+  field: string;
+  en: string;
+  bn: string;
+  citation?: Citation;
+}
+
 export interface ConsultResult {
   grounded: boolean;
   refused: boolean;
+  confidence?: 'high' | 'moderate' | 'low' | 'insufficient';
+  missing_data?: MissingDatum[];
   answer_bn: string;
   answer_en: string;
   citations: Citation[];
@@ -265,6 +274,51 @@ export async function resetSession(sid: string): Promise<SessionState | null> {
   return withTimeout<SessionState>(
     `${API_URL}/session/${sid}/reset`,
     { method: 'POST', headers: jsonHeaders },
+    12000
+  );
+}
+
+// ── New AI-feature clients ───────────────────────────────────────────────────
+
+export interface LivePrompts {
+  ask_these: MissingDatum[];
+  red_flags: { title: string; detail: string; citation?: Citation }[];
+  extracted: Record<string, unknown>;
+}
+
+/** Real-time co-pilot: partial transcript → next guideline questions + red flags. */
+export async function livePrompts(transcript: string, ageMonths?: number): Promise<LivePrompts | null> {
+  return withTimeout<LivePrompts>(
+    `${API_URL}/consult/live-prompts`,
+    { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ transcript, age_months: ageMonths }) },
+    12000
+  );
+}
+
+export interface ReconcileResult {
+  findings: MedFinding[];
+  notes: { type: string; severity: string; reason: string; citation?: Citation }[];
+  blocked: boolean;
+}
+
+/** Reconcile a proposed prescription against current + previous-report meds. */
+export async function reconcileMeds(payload: {
+  proposed: string[]; allergies?: string[]; current_meds?: string[]; past_meds?: string[];
+}): Promise<ReconcileResult | null> {
+  return withTimeout<ReconcileResult>(
+    `${API_URL}/assess/reconcile`,
+    { method: 'POST', headers: jsonHeaders, body: JSON.stringify(payload) },
+    12000
+  );
+}
+
+export interface RrEstimate { ok: boolean; rr: number | null; confidence: number; reason?: string; note?: string }
+
+/** Estimate breaths/min from a per-frame chest breathing signal. */
+export async function estimateRR(samples: number[], fps: number): Promise<RrEstimate | null> {
+  return withTimeout<RrEstimate>(
+    `${API_URL}/estimate-rr`,
+    { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ samples, fps }) },
     12000
   );
 }
