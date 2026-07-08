@@ -11,6 +11,7 @@ import {
   Lock,
   AlertTriangle,
   Languages,
+  PlayCircle,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -46,6 +47,13 @@ export default function Home() {
               </Link>
               <Link href="/patient" className="btn-secondary text-base">
                 Join as a patient
+              </Link>
+              <Link
+                href="/doctor"
+                className="inline-flex items-center gap-2 text-base font-semibold text-brand-700 transition hover:text-brand-800"
+              >
+                <PlayCircle className="h-5 w-5" />
+                Watch the scripted demo
               </Link>
             </div>
             <ul className="mt-9 flex flex-wrap gap-x-6 gap-y-2.5 text-sm text-ink-muted">

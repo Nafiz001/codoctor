@@ -5,6 +5,8 @@ import { Logo } from "./logo";
 const NAV = [
   { href: "/#how", label: "How it works" },
   { href: "/#agents", label: "The agents" },
+  { href: "/doctor", label: "Scripted demo" },
+  { href: "/live", label: "Voice check" },
 ];
 
 export function SiteHeader() {
