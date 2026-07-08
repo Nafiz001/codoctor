@@ -148,6 +148,8 @@ class LivePromptRequest(BaseModel):
 
     transcript: str = Field(..., description="The conversation so far (Bangla/English).")
     age_months: Optional[int] = Field(None, description="Child age in months, if known.")
+    allergies: list[str] = Field(default_factory=list, description="Known allergies, if recorded.")
+    current_meds: list[str] = Field(default_factory=list, description="Current meds, if recorded.")
 
 
 class DoseRequest(BaseModel):

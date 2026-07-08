@@ -1,13 +1,11 @@
 import Link from "next/link";
-import { Stethoscope, ArrowRight } from "lucide-react";
+import { UserRound, Stethoscope, ArrowRight } from "lucide-react";
 import { Logo } from "./logo";
 
 const NAV = [
-  { href: "/#problem", label: "Problem" },
   { href: "/#how", label: "How it works" },
   { href: "/#agents", label: "The agents" },
   { href: "/room", label: "Live room" },
-  { href: "/live", label: "Quick check" },
 ];
 
 export function SiteHeader() {
@@ -27,13 +25,14 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-2">
-          <Link href="/patient" className="btn-ghost hidden sm:inline-flex">
-            Patient view
+          <Link href="/patient" className="btn-secondary">
+            <UserRound className="h-4 w-4" /> Patient
           </Link>
-          <Link href="/doctor" className="btn-primary">
+          <Link href="/live" className="btn-primary">
             <Stethoscope className="h-4 w-4" />
-            Open demo
-            <ArrowRight className="h-4 w-4" />
+            <span className="hidden sm:inline">Start consultation</span>
+            <span className="sm:hidden">Consult</span>
+            <ArrowRight className="hidden h-4 w-4 sm:inline" />
           </Link>
         </div>
       </div>

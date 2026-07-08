@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.safety.dosing import dose  # noqa: E402
 from app.safety.reconcile import reconcile  # noqa: E402
+from app.safety.med_screening import screening_questions  # noqa: E402
 from app.asr.rr import estimate_rr  # noqa: E402
 from app.agents.completeness import next_questions  # noqa: E402
 
@@ -94,6 +95,27 @@ def test_next_questions_lists_unasked_checks():
     fields = {item["field"] for item in q}
     assert "respiratory_rate" in fields          # not measured yet
     assert all("bn" in item and "en" in item for item in q)
+
+
+def test_screening_asks_allergy_when_unknown():
+    q = screening_questions(["Amoxicillin"], allergies=[], current_meds=[])
+    assert any(item["field"] == "med_screen_penicillin" for item in q)
+    assert all("bn" in item and "en" in item for item in q)
+
+
+def test_screening_skips_when_allergy_already_known():
+    # Already a red-flag block → don't also nag to "ask about" it.
+    q = screening_questions(["Amoxicillin"], allergies=["Penicillin"], current_meds=[])
+    assert q == []
+
+
+def test_screening_nsaid_contraindication_prompt():
+    q = screening_questions(["Ibuprofen"], allergies=[], current_meds=[])
+    assert any(item["field"] == "med_screen_nsaid" for item in q)
+
+
+def test_screening_none_for_plain_drug():
+    assert screening_questions(["Paracetamol"], [], []) == []
 
 
 def test_next_questions_empty_when_complete():

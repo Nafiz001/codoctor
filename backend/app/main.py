@@ -35,6 +35,7 @@ from .safety.imci import classify_ari
 from .safety.medsafety import check_medication
 from .safety.dosing import dose as compute_dose
 from .safety.reconcile import reconcile as reconcile_meds
+from .safety.med_screening import screening_questions
 from .rag.retriever import HybridRetriever
 from .agents.graph import run_consultation, doctor_alerts
 from .agents.completeness import next_questions
@@ -147,8 +148,13 @@ def consult_live_prompts(req: LivePromptRequest) -> dict:
             "detail": "; ".join(imci.get("reasons", [])) or imci.get("action", ""),
             "citation": imci.get("citation"),
         })
+    # IMCI assessment gaps + medication-screening questions for any drug the
+    # doctor has just proposed (e.g. "ask about penicillin allergy before Amoxicillin").
+    ask = next_questions(enc) + screening_questions(
+        enc.get("proposed_meds", []), req.allergies, req.current_meds
+    )
     return {
-        "ask_these": next_questions(enc),
+        "ask_these": ask,
         "red_flags": red_flags,
         "extracted": enc,
     }
@@ -425,6 +431,23 @@ def session_get(sid: str) -> dict:
     if not rec:
         raise HTTPException(status_code=404, detail="Session not found or expired.")
     return rec
+
+
+@app.get("/session/{sid}/live-transcript", tags=["session"])
+def session_live_transcript(sid: str) -> dict:
+    """Fuse both devices' live transcripts on demand so the doctor's screen can
+    show one reconciled conversation in real time (source-tagged: A=doctor,
+    B=patient). Deterministic fusion only — no LLM, cheap to poll."""
+    tr = sessions.transcripts(sid)
+    if tr is None:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+    device_a, device_b = tr
+    fused = fuse(device_a, device_b)
+    return {
+        "fused": fused,
+        "counts": {"doctor": len(device_a), "patient": len(device_b)},
+        "recovered_count": sum(1 for s in fused if s["recovered"]),
+    }
 
 
 @app.post("/session/{sid}/join", tags=["session"])

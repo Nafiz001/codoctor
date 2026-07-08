@@ -25,6 +25,8 @@ import {
   Siren,
   HelpCircle,
   Search,
+  Brain,
+  UserRound,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { TONES } from "@/components/tone";
@@ -39,10 +41,14 @@ import {
   resetSession,
   runSessionDemo,
   warmBackend,
+  livePrompts,
+  getLiveTranscript,
   API_URL,
   type SessionState,
   type SessionAnalyzeResult,
   type DoctorAlerts,
+  type LivePrompts,
+  type FusedSegment,
 } from "@/lib/api";
 import type { Tone } from "@/lib/demo-data";
 
@@ -79,6 +85,8 @@ export default function RoomPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
   const [result, setResult] = useState<SessionAnalyzeResult | null>(null);
+  const [live, setLive] = useState<LivePrompts | null>(null);
+  const [liveFused, setLiveFused] = useState<FusedSegment[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const sidRef = useRef<string | null>(null);
@@ -98,15 +106,43 @@ export default function RoomPage() {
   }, []);
   const dictation = useDictation(onFinal, "bn-BD");
 
-  // Poll session so the patient's "connected" + utterance count update live.
+  // Poll session status + the real-time fused transcript (both devices, source-
+  // tagged) so the doctor sees one reconciled conversation as it happens.
   useEffect(() => {
     if (!session) return;
     const id = setInterval(async () => {
       const s = await getSession(session.id);
       if (s) setSession(s);
-    }, 3000);
+      if (!result) {
+        const lt = await getLiveTranscript(session.id);
+        if (lt) setLiveFused(lt.fused);
+      }
+    }, 2500);
     return () => clearInterval(id);
-  }, [session?.id]);
+  }, [session?.id, result]);
+
+  // Real-time co-pilot: as the doctor speaks, ask the next guideline question
+  // (incl. "ask about the allergy" once a drug is mentioned). Runs until analyze.
+  useEffect(() => {
+    if (!session || result || heard.length === 0) return;
+    let stop = false;
+    const tick = async () => {
+      const text = `${heard.map((h) => h.text).join(" ")} ${proposedMed}`.trim();
+      const p = await livePrompts(
+        text,
+        Number(ageMonths) || 36,
+        splitList(allergies),
+        splitList(currentMeds)
+      );
+      if (!stop && p) setLive(p);
+    };
+    void tick();
+    const id = setInterval(tick, 5000);
+    return () => {
+      stop = true;
+      clearInterval(id);
+    };
+  }, [session?.id, heard.length, result]);
 
   const start = async () => {
     setCreating(true);
@@ -187,6 +223,8 @@ export default function RoomPage() {
     if (!session) return;
     dictation.stop();
     setResult(null);
+    setLive(null);
+    setLiveFused([]);
     setHeard([]);
     setError(null);
     const s = await resetSession(session.id);
@@ -211,8 +249,8 @@ export default function RoomPage() {
             <span className="chip hidden bg-emerald-50 text-emerald-700 ring-emerald-200 sm:inline-flex">
               <Radio className="h-3 w-3" /> Real session · live mic
             </span>
-            <Link href="/doctor" className="btn-ghost">
-              Scripted demo
+            <Link href="/patient" className="btn-ghost">
+              <UserRound className="h-4 w-4" /> Patient
             </Link>
             <Link href="/" className="btn-ghost">
               <ArrowLeft className="h-4 w-4" /> Home
@@ -389,7 +427,7 @@ export default function RoomPage() {
             <div className="card flex h-[640px] flex-col">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
                 <div className="flex items-center gap-2 font-semibold text-ink">
-                  <Mic className="h-4 w-4 text-brand-500" /> Doctor&apos;s mic
+                  <Mic className="h-4 w-4 text-brand-500" /> Live conversation
                 </div>
                 {dictation.supported ? (
                   <button
@@ -421,31 +459,31 @@ export default function RoomPage() {
               </div>
 
               <div className="flex-1 space-y-2.5 overflow-y-auto px-5 py-5">
-                {heard.length === 0 && !dictation.interim ? (
+                {liveFused.length === 0 && heard.length === 0 && !dictation.interim ? (
                   <div className="flex h-full flex-col items-center justify-center px-6 text-center">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
                       <Mic className="h-5 w-5" />
                     </div>
                     <p className="mt-3 max-w-xs text-sm text-ink-faint">
-                      Tap <strong>Listen</strong> and speak the consultation in
-                      Bangla. Each phrase streams into the session live.
+                      Tap <strong>Listen</strong> and speak in Bangla. Both phones
+                      stream in and fuse here live — <span className="text-emerald-700">green</span> marks
+                      words the patient&apos;s phone contributed.
                     </p>
                   </div>
                 ) : (
                   <>
-                    {heard.map((h, i) => (
-                      <div
-                        key={i}
-                        className="bn animate-fade-up rounded-xl bg-slate-100 px-3.5 py-2.5 text-sm leading-relaxed text-ink-soft"
-                      >
-                        {h.text}
-                        {h.conf < 0.75 && (
-                          <span className="ml-2 inline-flex items-center gap-0.5 align-middle text-[10px] font-semibold text-amber-600">
-                            <AlertTriangle className="h-2.5 w-2.5" /> low conf
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                    {liveFused.length > 0 ? (
+                      <LiveFusedFeed segments={liveFused} />
+                    ) : (
+                      heard.map((h, i) => (
+                        <div
+                          key={i}
+                          className="bn animate-fade-up rounded-xl bg-slate-100 px-3.5 py-2.5 text-sm leading-relaxed text-ink-soft"
+                        >
+                          {h.text}
+                        </div>
+                      ))
+                    )}
                     {dictation.interim && (
                       <div className="bn rounded-xl bg-slate-50 px-3.5 py-2.5 text-sm italic text-ink-faint">
                         {dictation.interim}…
@@ -506,19 +544,21 @@ export default function RoomPage() {
             </div>
           </section>
 
-          {/* Right — live analysis */}
+          {/* Right — live co-pilot (during) → analysis (after) */}
           <section className="space-y-5 lg:col-span-4">
-            {!result ? (
+            {result ? (
+              <RoomResult result={result} />
+            ) : live && (live.red_flags.length > 0 || live.ask_these.length > 0) ? (
+              <LiveCoPilot live={live} />
+            ) : (
               <div className="card flex h-[640px] flex-col items-center justify-center p-8 text-center">
                 <Sparkles className="h-8 w-8 text-brand-300" />
                 <p className="mt-3 max-w-xs text-sm text-ink-faint">
-                  After you analyze, the grounded result appears here and the
-                  patient&apos;s phone updates instantly with a spoken Bangla
-                  summary.
+                  As you speak, the co-pilot suggests what to ask next here — then
+                  after you analyze, the grounded result appears and the
+                  patient&apos;s phone updates with a spoken Bangla summary.
                 </p>
               </div>
-            ) : (
-              <RoomResult result={result} />
             )}
           </section>
         </div>
@@ -804,11 +844,115 @@ function DoctorHelper({ alerts }: { alerts: DoctorAlerts }) {
   );
 }
 
+/** Real-time "ask this next" — shown live in the right panel while the doctor
+ *  speaks, before analyze. Reuses the same engine as the post-analyze co-pilot. */
+function LiveCoPilot({ live }: { live: LivePrompts }) {
+  return (
+    <div className="card overflow-hidden p-0">
+      <div className="flex items-center gap-2 border-b border-slate-100 bg-indigo-50/70 px-5 py-3">
+        <Brain className="h-4 w-4 text-indigo-600" />
+        <span className="font-semibold text-ink">Co-pilot · live</span>
+        <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" /> listening
+        </span>
+      </div>
+      <div className="space-y-3 px-5 py-4">
+        {live.red_flags.map((r, i) => (
+          <div key={`r${i}`} className="rounded-xl bg-red-50 p-3.5 ring-1 ring-inset ring-red-200">
+            <div className="flex items-center gap-2">
+              <Siren className="h-4 w-4 shrink-0 text-red-600" />
+              <span className="font-bold text-red-800">{r.title}</span>
+            </div>
+            {r.detail && <p className="mt-1 text-sm text-red-900/90">{r.detail}</p>}
+          </div>
+        ))}
+        {live.ask_these.length > 0 && (
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-amber-700">
+              <HelpCircle className="h-3.5 w-3.5" /> Ask this next
+            </div>
+            <ul className="mt-2 space-y-1.5">
+              {live.ask_these.map((q, i) => (
+                <li key={i} className="rounded-lg bg-amber-50 px-3 py-2 ring-1 ring-inset ring-amber-200">
+                  <p className="bn text-sm font-medium text-amber-900">{q.bn}</p>
+                  <p className="text-xs text-amber-700/90">{q.en}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="text-[11px] text-ink-faint">
+          Updates as you speak. The final grounded analysis runs when you tap
+          <strong className="text-ink-soft"> Analyze</strong>.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** The live, source-tagged conversation on the doctor's screen: doctor lines in
+ *  neutral, patient-phone lines tinted green, recovered words highlighted. */
+function LiveFusedFeed({ segments }: { segments: FusedSegment[] }) {
+  const segs = collapsePartials(segments);
+  return (
+    <>
+      {segs.map((s, i) => {
+        const isPatient = s.sources.length === 1 && s.sources[0] === "B";
+        const isBoth = s.sources.length === 2;
+        const label = isPatient ? "Patient phone" : isBoth ? "Both phones" : "Doctor";
+        return (
+          <div
+            key={i}
+            className={cn(
+              "animate-fade-up rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ring-1 ring-inset",
+              isPatient
+                ? "bg-emerald-50 text-emerald-900 ring-emerald-200"
+                : "bg-slate-100 text-ink-soft ring-transparent"
+            )}
+          >
+            <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
+              <span className={isPatient ? "text-emerald-600" : "text-brand-500"}>{label}</span>
+              {s.recovered && (
+                <span className="inline-flex items-center gap-0.5 text-emerald-600">
+                  <Mic className="h-2.5 w-2.5" /> recovered
+                </span>
+              )}
+            </div>
+            <p className="bn">{highlightRecovered(s.text, s.recovered_tokens)}</p>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/** Collapse streaming partials: when a phone streams "হ্যালো" → "হ্যালো আমার" → …,
+ *  keep only the final (longest) line of each growing chain, so the transcript reads cleanly. */
+function collapsePartials(
+  segments: SessionAnalyzeResult["fused_transcript"]
+): SessionAnalyzeResult["fused_transcript"] {
+  const out: SessionAnalyzeResult["fused_transcript"] = [];
+  for (const s of segments) {
+    const prev = out[out.length - 1];
+    const sameSource = prev && prev.sources.join(",") === s.sources.join(",");
+    if (prev && sameSource && s.text.startsWith(prev.text)) {
+      out[out.length - 1] = s; // s is a longer continuation of prev — replace
+    } else if (prev && sameSource && prev.text.startsWith(s.text)) {
+      // s is a shorter partial of what we already have — skip
+      continue;
+    } else {
+      out.push(s);
+    }
+  }
+  return out;
+}
+
 function FusedTranscript({
-  segments,
+  segments: rawSegments,
 }: {
   segments: SessionAnalyzeResult["fused_transcript"];
 }) {
+  const segments = collapsePartials(rawSegments || []);
   if (!segments || segments.length === 0) return null;
   const totalRecovered = segments.reduce(
     (n, s) => n + (s.recovered_tokens?.length ?? 0),
