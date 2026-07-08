@@ -33,7 +33,36 @@ def build_summary(analysis: dict, patient: dict | None = None) -> dict:
     imci = safety.get("imci") or {}
     meds = safety.get("medication") or []
     classification = imci.get("classification") or ""
+    severity = imci.get("severity") or ""
     refer = bool(imci.get("refer"))
+
+    if severity == "unknown":
+        # We could not classify (usually the breathing rate wasn't captured).
+        # Be honest — never a green "you're fine".
+        tone = "amber"
+        condition_bn = "নিউমোনিয়া নিশ্চিত করা যায়নি — শ্বাসের হার গণনা করা দরকার।"
+        condition_en = "Could not confirm — the breathing rate is needed to decide."
+        meaning_bn = "শ্বাসের হার না গুনে নিউমোনিয়া বাদ দেওয়া যায় না। এক মিনিট শ্বাস গুনুন।"
+        meaning_en = "Pneumonia cannot be ruled out without counting the breathing. Count for one minute."
+        action_bn = "শ্বাসের হার গণনা করুন; সন্দেহ হলে ডাক্তারকে জানান বা হাসপাতালে যান।"
+        action_en = "Count the breathing rate; if in doubt, see a doctor or go to hospital."
+        meds_bn = "শ্বাসের হার নিশ্চিত না হওয়া পর্যন্ত অ্যান্টিবায়োটিকের সিদ্ধান্ত নেবেন না।"
+        meds_en = "Do not decide on an antibiotic until the breathing rate is confirmed."
+        blocked = sorted({m.get("drug", "") for m in meds if m.get("severity") == "critical"})
+        blocked = [d for d in blocked if d]
+        if blocked:
+            names = ", ".join(d.capitalize() for d in blocked)
+            meds_bn += f" তবে {names} জাতীয় ওষুধ দেওয়া যাবে না — অ্যালার্জি আছে।"
+            meds_en += f" But do not give {names}-type medicine — there is an allergy."
+        return {
+            "conditionBn": condition_bn, "conditionEn": condition_en,
+            "meaningBn": meaning_bn, "meaningEn": meaning_en,
+            "actionBn": action_bn, "actionEn": action_en,
+            "medsBn": meds_bn, "medsEn": meds_en,
+            "dangerSignsBn": _DANGER_BN, "dangerSignsEn": _DANGER_EN,
+            "tone": tone, "refer": False,
+            "citations": analysis.get("citations") or [],
+        }
 
     if "Severe" in classification:
         tone = "red"

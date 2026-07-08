@@ -56,7 +56,7 @@ function splitList(s: string): string[] {
 }
 function toneForSeverity(sev: string): Tone {
   if (sev === "critical") return "red";
-  if (sev === "moderate" || sev === "caution") return "amber";
+  if (sev === "moderate" || sev === "caution" || sev === "unknown") return "amber";
   if (sev === "low") return "emerald";
   return "slate";
 }

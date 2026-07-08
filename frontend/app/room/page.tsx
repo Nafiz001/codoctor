@@ -85,7 +85,7 @@ function mergeCsv(existing: string, add: string[]): string {
 
 function toneForSeverity(sev: string): Tone {
   if (sev === "critical") return "red";
-  if (sev === "moderate" || sev === "caution") return "amber";
+  if (sev === "moderate" || sev === "caution" || sev === "unknown") return "amber";
   if (sev === "low") return "emerald";
   return "slate";
 }
@@ -102,6 +102,8 @@ export default function RoomPage() {
   const [currentMeds, setCurrentMeds] = useState("");
   const [ageMonths, setAgeMonths] = useState("");
   const [proposedMed, setProposedMed] = useState("");
+  const [respiratoryRate, setRespiratoryRate] = useState("");
+  const [chestIndrawing, setChestIndrawing] = useState(false);
   const [notes, setNotes] = useState("");
 
   const [withPatientPhone, setWithPatientPhone] = useState(true);
@@ -214,6 +216,15 @@ export default function RoomPage() {
     dictation.stop();
     setAnalyzing(true);
     setError(null);
+    // Feed the vitals the mic can't reliably hear — the breathing rate (spoken
+    // numbers get transcribed as words) and chest indrawing — into the transcript
+    // as digits/keywords so the Scribe extracts them for the IMCI danger-sign check.
+    const vitalsBits: string[] = [];
+    if (respiratoryRate) vitalsBits.push(`respiratory rate ${respiratoryRate}`);
+    if (chestIndrawing) vitalsBits.push("chest indrawing present");
+    if (vitalsBits.length) {
+      await appendTranscript(session.id, "doctor", vitalsBits.join(", "), 0.99);
+    }
     const payload = {
       patient: {
         allergies: splitList(allergies),
@@ -580,6 +591,8 @@ export default function RoomPage() {
                     setCurrentMeds("Salbutamol");
                     setAgeMonths("36");
                     setProposedMed("Amoxicillin");
+                    setRespiratoryRate("52");
+                    setChestIndrawing(true);
                   }}
                   className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-1 text-[11px] font-semibold text-brand-700 ring-1 ring-inset ring-brand-200 hover:bg-brand-100"
                 >
@@ -624,6 +637,42 @@ export default function RoomPage() {
                     className="input"
                   />
                 </MiniField>
+              </div>
+              <div className="mt-3 grid grid-cols-2 items-end gap-3">
+                <MiniField label="Resp. rate (per min)">
+                  <input
+                    type="number"
+                    value={respiratoryRate}
+                    onChange={(e) => setRespiratoryRate(e.target.value)}
+                    placeholder="e.g. 52"
+                    className="input"
+                  />
+                </MiniField>
+                <button
+                  type="button"
+                  onClick={() => setChestIndrawing((v) => !v)}
+                  className={cn(
+                    "flex h-[42px] items-center justify-between rounded-xl border px-3 text-sm font-medium transition",
+                    chestIndrawing
+                      ? "border-red-300 bg-red-50 text-red-700"
+                      : "border-slate-200 bg-white text-ink-muted"
+                  )}
+                >
+                  Chest indrawing
+                  <span
+                    className={cn(
+                      "relative h-5 w-9 rounded-full transition",
+                      chestIndrawing ? "bg-red-500" : "bg-slate-300"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition",
+                        chestIndrawing ? "left-[18px]" : "left-0.5"
+                      )}
+                    />
+                  </span>
+                </button>
               </div>
               <MiniField label="Anything else">
                 <textarea

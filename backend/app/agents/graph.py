@@ -214,8 +214,11 @@ def route(state: ConsultState) -> str:
 
 def _bangla_summary(imci: dict, critical_meds: list) -> str:
     cls = imci.get("classification", "")
+    severity = imci.get("severity", "")
     parts = []
-    if "Severe" in cls:
+    if severity == "unknown":
+        parts.append("শ্বাসের হার না গুনে নিউমোনিয়া নিশ্চিত বা বাদ দেওয়া যাচ্ছে না — অনুগ্রহ করে এক মিনিট শ্বাস গুনুন।")
+    elif "Severe" in cls:
         parts.append("শিশুর গুরুতর নিউমোনিয়া হয়েছে — এখনই হাসপাতালে নিতে হবে।")
     elif cls == "Pneumonia":
         parts.append("শিশুর নিউমোনিয়া হয়েছে — গাইডলাইন অনুযায়ী অ্যান্টিবায়োটিক দিন ও ৩ দিন পর আবার দেখান।")

@@ -36,6 +36,15 @@ def test_no_pneumonia():
     assert r["classification"].startswith("Cough or cold")
 
 
+def test_no_rate_is_honest_not_no_pneumonia():
+    """No breathing rate + no other sign → 'not classified' (ask for the count),
+    NEVER a false 'no pneumonia' all-clear."""
+    r = classify_ari(age_months=36, respiratory_rate=None)
+    assert r["severity"] == "unknown"
+    assert "no pneumonia" not in r["classification"].lower()
+    assert r["refer"] is False  # not a refer, but not an all-clear either
+
+
 def test_age_specific_threshold():
     # 6-month-old: threshold is 50, so RR 48 is NOT fast but RR 52 IS.
     assert classify_ari(age_months=6, respiratory_rate=48)["fast_breathing"] is False

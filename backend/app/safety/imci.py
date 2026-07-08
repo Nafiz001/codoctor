@@ -65,13 +65,26 @@ def classify_ari(
         reasons.append(
             f"fast breathing: RR {respiratory_rate} ≥ {threshold}/min for age"
         )
-    # 3) No pneumonia
+    # 3) Not classifiable — the breathing rate is the number that decides between
+    #    pneumonia and a simple cold, and we don't have it (a real consultation
+    #    rarely states it as a clean number). We must NOT call this "no pneumonia"
+    #    — that is a false all-clear. Ask for the count instead.
+    elif respiratory_rate is None:
+        classification = "Not classified — breathing rate needed"
+        severity = "unknown"
+        refer = False
+        action = (
+            "Count the breaths in one full minute before deciding. Pneumonia "
+            "cannot be ruled out without the breathing rate."
+        )
+        reasons.append("respiratory rate not measured — cannot assess fast breathing")
+    # 4) No pneumonia — a MEASURED rate that is below the age threshold
     else:
         classification = "Cough or cold (no pneumonia)"
         severity = "low"
         refer = False
         action = "Home care; soothe the throat; advise when to return. No antibiotic."
-        if respiratory_rate is not None and threshold is not None:
+        if threshold is not None:
             reasons.append(
                 f"RR {respiratory_rate} < {threshold}/min — not fast for age"
             )
