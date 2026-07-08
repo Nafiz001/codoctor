@@ -10,6 +10,26 @@
 
 ---
 
+## Screenshots
+
+**Landing (`/`)** — the 90-second-consultation problem, a live danger-sign catch, and the demo entry points.
+
+![Codoctor landing page](docs/screenshots/landing.png)
+
+**Doctor cockpit (`/doctor`)** — two phones fused into one Bangla transcript (with English read-back), the agent reasoning trace + differential, and the patient record surfacing the penicillin allergy.
+
+![Doctor consultation cockpit](docs/screenshots/doctor-cockpit.png)
+
+| Live consultation room (`/room`) | Voice quick-check (`/live`) |
+|---|---|
+| ![Live consultation room](docs/screenshots/room.png) | ![Voice quick-check](docs/screenshots/live.png) |
+
+**Patient's phone (`/patient`)** — the spoken, plain-Bangla take-home summary the patient keeps, with a "listen aloud" button and the danger signs to watch for.
+
+<p><img src="docs/screenshots/patient.png" width="300" alt="Patient phone Bangla summary"></p>
+
+---
+
 ## The problem
 
 In Bangladesh's government-hospital OPDs, one doctor often sees 80–150+ patients a day — a real consultation is **60–120 seconds**. In that window things get missed (an un-asked red-flag question, an unchecked drug interaction, an un-escalated danger sign); nothing is recorded (there is **no national EHR** — the record is a paper slip the patient loses); and the Bangla-only, low-literacy patient can't read the English prescription they're handed.
