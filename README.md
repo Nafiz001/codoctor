@@ -46,6 +46,18 @@ The LLM **never makes a clinical decision** in any of the three roles.
 
 **Advisory & non-diagnostic. The clinician is always the decision-maker.**
 
+## Why two phones? (and what happens without a patient phone)
+
+**The problem with one microphone.** A government OPD is loud — other patients, fans, corridor noise. A single phone sitting on the desk mishears words, and Bangla speech recognition drops exactly the words that matter (a mumbled *"বুকটা টেনে টেনে"* — chest indrawing — or *"দ্রুত"* — fast). Miss one danger-sign word and the whole assessment is wrong.
+
+**What two phones buy us.** The doctor's phone and the patient's phone hear the *same* conversation from two positions. When one mic drops a word, the other usually caught it. `asr/fusion.py` lines up the two transcripts by time + overlap and **recovers the missed words from whichever phone heard them** — so the pipeline reasons over one clean transcript instead of two lossy ones. It costs nothing extra: it uses the phones people already have, not a special microphone array. Giving the patient a phone in the session is also what lets the final summary be **pushed to them and spoken aloud in Bangla** on their own device — the record literally stays with them.
+
+**How the patient joins.** The doctor opens `/room`, which shows a QR code + a short session code. The patient scans the QR (or types the code in Patient mode) to join — no app install, no login.
+
+**If the patient has no phone — solo mode.** Many patients don't own a smartphone, so `/room` has a **Has phone / No phone** toggle. In *solo mode* the doctor's single phone becomes the one source of truth: it records the whole conversation and runs the exact same pipeline (safety checks, RAG, summary). Nothing is lost except the second-mic word-recovery. Afterwards the record is shared the low-tech way — the doctor reads the plain-Bangla summary aloud, and it can be saved/printed as a PDF for the patient to take home.
+
+**If you have no second phone at all — seeded demo.** For a solo tester or a judge, the **`Run demo consultation`** button on `/room` replays a canonical two-device transcript through the *real* pipeline, so you still see the fusion recover the danger-sign words and the full safety flow fire — no second device or live mic required.
+
 ## Architecture
 
 ```mermaid

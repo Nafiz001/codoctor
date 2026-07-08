@@ -48,6 +48,9 @@ Thumbs.db
 # ---- Local agent / tooling ----
 .claude/
 
+# ---- Mobile app (developed separately; kept out of the submission repo) ----
+codoctor-mobile/
+
 # ---- Competition reference material (not part of the deliverable) ----
 
 # ...but the generated deliverable PDFs ARE part of the submission:
