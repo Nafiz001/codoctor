@@ -144,6 +144,19 @@ Unit tests: **47/47 pass** (`safety` 9 · `rag` 6 · `asr` 4 · `agents` 6 · `s
 
 > *Honest scope note:* these are correctness numbers for the deterministic engines and the grounding behaviour of the orchestrator on a curated set — not a clinical-accuracy claim. Clinical validation is future work (§7).
 
+### 6.1 Early clinician validation
+
+Beyond the numbers, we put the working demo in front of a practising medical trainee:
+
+<table>
+<tr>
+<td width="130" valign="top"><img src="mbbs_student.jpg" width="120" alt="Sanjana Mahia, final-year MBBS student, AFMC"></td>
+<td valign="top"><em>&ldquo;Doctors are so busy, they can easily miss something. A tool like this would really help interns and volunteers.&rdquo;</em><br><br><strong>&mdash; Sanjana Mahia</strong>, final-year (5th-year) MBBS student, Armed Forces Medical College (AFMC)</td>
+</tr>
+</table>
+
+This validates both the premise — that time-pressured clinicians miss things — and the design intent: Codoctor's highest value is as a safety-net for interns, volunteers, and busy OPD doctors.
+
 ---
 
 ## 7. Limitations & future work

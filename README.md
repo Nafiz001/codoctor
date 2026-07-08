@@ -35,6 +35,25 @@
 
 In Bangladesh's government-hospital OPDs, one doctor often sees 80–150+ patients a day — a real consultation is **60–120 seconds**. In that window things get missed (an un-asked red-flag question, an unchecked drug interaction, an un-escalated danger sign); nothing is recorded (there is **no national EHR** — the record is a paper slip the patient loses); and the Bangla-only, low-literacy patient can't read the English prescription they're handed.
 
+## Early validation — a clinician's take
+
+We didn't only build this for ourselves — we showed it to a practising medical trainee.
+
+<table>
+<tr>
+<td width="210" valign="top">
+<img src="docs/mbbs_student.jpg" width="190" alt="Sanjana Mahia, final-year MBBS student, AFMC">
+</td>
+<td valign="top">
+
+> "Doctors are so busy, they can easily miss something. A tool like this would really help interns and volunteers."
+
+**— Sanjana Mahia**, final-year (5th-year) MBBS student, **Armed Forces Medical College (AFMC)**
+
+</td>
+</tr>
+</table>
+
 ## The core idea: AI understands, deterministic engines decide
 
 AI owns everything *ambiguous* — hearing noisy bilingual speech, extracting clinical meaning from free-form Bangla, finding the right guideline across languages, explaining in plain words. The one **irreversible** call is owned by deterministic, auditable rule engines, each returning its own citation:
