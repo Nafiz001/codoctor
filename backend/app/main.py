@@ -30,6 +30,7 @@ from .models import (
     DoseRequest,
     ReconcileRequest,
     RREstimateRequest,
+    SeedCaseRequest,
 )
 from .safety.imci import classify_ari
 from .safety.medsafety import check_medication
@@ -490,6 +491,35 @@ def session_analyze(sid: str, req: SessionAnalyzeRequest) -> dict:
     summary = build_summary(result["analysis"], req.patient.model_dump())
     session = sessions.publish(sid, summary, result["analysis"])
     return {"session": session, "summary": summary, **result}
+
+
+@app.post("/session/{sid}/seed-case", tags=["session"])
+def session_seed_case(sid: str, req: SeedCaseRequest) -> dict:
+    """Load a reproducible demo case: seed the transcript with the dialogue (so
+    the live conversation view fills in) and run the analysis on the structured
+    encounter — deterministic, independent of live ASR — then publish the summary
+    to the patient's phone. Returns the same shape as /session/{id}/analyze."""
+    if sessions.get(sid) is None:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+    for seg in req.transcript:
+        sessions.append(sid, seg.role, seg.text, 0.95)
+
+    patient = req.patient.model_dump()
+    encounter = req.encounter.model_dump()
+    analysis = run_consultation(patient, encounter)
+    summary = build_summary(analysis, patient)
+    session = sessions.publish(sid, summary, analysis)
+
+    device_a, device_b = sessions.transcripts(sid) or ([], [])
+    fused = fuse(device_a, device_b)
+    return {
+        "session": session,
+        "summary": summary,
+        "analysis": analysis,
+        "fused_transcript": fused,
+        "extracted_encounter": encounter,
+        "seeded": True,
+    }
 
 
 @app.post("/session/{sid}/reset", tags=["session"])

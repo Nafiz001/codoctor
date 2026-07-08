@@ -27,6 +27,7 @@ import {
   Search,
   Brain,
   UserRound,
+  ClipboardList,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { TONES } from "@/components/tone";
@@ -43,6 +44,7 @@ import {
   warmBackend,
   livePrompts,
   getLiveTranscript,
+  seedCase,
   API_URL,
   type SessionState,
   type SessionAnalyzeResult,
@@ -51,6 +53,8 @@ import {
   type FusedSegment,
 } from "@/lib/api";
 import type { Tone } from "@/lib/demo-data";
+import { SCENARIOS, type DemoScenario } from "@/lib/scenarios";
+import { ScenarioPanel } from "@/components/scenario-panel";
 
 function splitList(s: string): string[] {
   return s
@@ -84,6 +88,7 @@ export default function RoomPage() {
   const [heard, setHeard] = useState<Heard[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [demoRunning, setDemoRunning] = useState(false);
+  const [scriptsOpen, setScriptsOpen] = useState(false);
   const [result, setResult] = useState<SessionAnalyzeResult | null>(null);
   const [live, setLive] = useState<LivePrompts | null>(null);
   const [liveFused, setLiveFused] = useState<FusedSegment[]>([]);
@@ -219,6 +224,58 @@ export default function RoomPage() {
     }
   };
 
+  // Load a reproducible demo case (deterministic — no mic needed).
+  const useCase = async (s: DemoScenario) => {
+    setScriptsOpen(false);
+    setError(null);
+    setAllergies(s.form.allergies);
+    setCurrentMeds(s.form.currentMeds);
+    setAgeMonths(s.form.ageMonths);
+    setProposedMed(s.form.proposedMed);
+    setResult(null);
+    setLive(null);
+    setLiveFused([]);
+    setHeard([]);
+    dictation.stop();
+    let sess = session;
+    if (!sess) {
+      sess = await createSession({
+        allergies: splitList(s.form.allergies),
+        current_meds: splitList(s.form.currentMeds),
+      });
+      if (sess) setSession(sess);
+    }
+    if (!sess) {
+      setError("Couldn't reach the backend just now — please try again.");
+      return;
+    }
+    setDemoRunning(true);
+    const out = await seedCase(sess.id, {
+      patient: {
+        allergies: splitList(s.form.allergies),
+        current_meds: splitList(s.form.currentMeds),
+      },
+      encounter: {
+        age_months: Number(s.form.ageMonths) || 36,
+        symptoms: splitList(s.form.symptoms),
+        vitals: s.form.respiratoryRate
+          ? { respiratory_rate: Number(s.form.respiratoryRate) }
+          : {},
+        chest_indrawing: s.form.chestIndrawing,
+        general_danger_signs: s.form.dangerSigns,
+        proposed_meds: s.form.proposedMed ? [s.form.proposedMed] : [],
+      },
+      transcript: s.dialogue.map((l) => ({ role: l.who, text: l.bn })),
+    });
+    setDemoRunning(false);
+    if (out) {
+      setResult(out);
+      setSession(out.session);
+    } else {
+      setError("Couldn't load the case — the backend may be waking. Try again in ~30s.");
+    }
+  };
+
   const newConsult = async () => {
     if (!session) return;
     dictation.stop();
@@ -258,6 +315,8 @@ export default function RoomPage() {
           </div>
         </div>
       </header>
+
+      {scriptsOpen && <ScenarioPanel onClose={() => setScriptsOpen(false)} onUse={useCase} />}
 
       {/* No session yet — intro + start */}
       {!session ? (
@@ -309,6 +368,13 @@ export default function RoomPage() {
                     <PlayCircle className="h-4 w-4" /> Run demo consultation
                   </>
                 )}
+              </button>
+              <button
+                onClick={() => setScriptsOpen(true)}
+                disabled={creating || demoRunning}
+                className="btn-ghost"
+              >
+                <ClipboardList className="h-4 w-4" /> Demo scripts · {SCENARIOS.length} cases
               </button>
             </div>
             <p className="mt-3 text-xs text-ink-faint">
@@ -419,6 +485,12 @@ export default function RoomPage() {
                   />
                 </MiniField>
               </div>
+              <button
+                onClick={() => setScriptsOpen(true)}
+                className="btn-ghost mt-4 w-full text-xs"
+              >
+                <ClipboardList className="h-3.5 w-3.5" /> Demo scripts · {SCENARIOS.length} cases
+              </button>
             </div>
           </aside>
 

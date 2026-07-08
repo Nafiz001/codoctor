@@ -40,7 +40,7 @@ export default function Home() {
               sure no danger sign, drug interaction, or question is missed.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link href="/live" className="btn-primary text-base">
+              <Link href="/room" className="btn-primary text-base">
                 Start a consultation
                 <ArrowRight className="h-4 w-4" />
               </Link>
@@ -250,16 +250,16 @@ export default function Home() {
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
-              href="/live"
+              href="/room"
               className="btn bg-white text-base text-brand-700 hover:bg-brand-50"
             >
               Start a consultation <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="/room"
+              href="/patient"
               className="btn text-base text-white ring-1 ring-inset ring-white/30 hover:bg-white/10"
             >
-              See the live room
+              Join as a patient
             </Link>
           </div>
         </div>

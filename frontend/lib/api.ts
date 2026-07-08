@@ -371,6 +371,38 @@ export async function runSessionDemo(
   }
 }
 
+/** Load a reproducible demo case into a session (deterministic — seeds the
+ *  transcript and analyzes the structured encounter). Returns the analysis. */
+export async function seedCase(
+  sid: string,
+  payload: {
+    patient: { allergies?: string[]; current_meds?: string[] };
+    encounter: {
+      age_months: number;
+      symptoms?: string[];
+      vitals?: Record<string, number>;
+      chest_indrawing?: boolean;
+      general_danger_signs?: string[];
+      proposed_meds?: string[];
+    };
+    transcript: { role: "doctor" | "patient"; text: string }[];
+  },
+  timeoutMs = 35000
+): Promise<SessionAnalyzeResult | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/session/${sid}/seed-case`,
+      { method: "POST", headers: jsonHeaders, body: JSON.stringify(payload) },
+      timeoutMs
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as SessionAnalyzeResult;
+  } catch {
+    return null;
+  }
+}
+
 /** Clear the transcript to run another consultation in the same session. */
 export async function resetSession(sid: string): Promise<SessionState | null> {
   if (!API_URL) return null;

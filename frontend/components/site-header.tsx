@@ -5,7 +5,6 @@ import { Logo } from "./logo";
 const NAV = [
   { href: "/#how", label: "How it works" },
   { href: "/#agents", label: "The agents" },
-  { href: "/room", label: "Live room" },
 ];
 
 export function SiteHeader() {
@@ -28,7 +27,7 @@ export function SiteHeader() {
           <Link href="/patient" className="btn-secondary">
             <UserRound className="h-4 w-4" /> Patient
           </Link>
-          <Link href="/live" className="btn-primary">
+          <Link href="/room" className="btn-primary">
             <Stethoscope className="h-4 w-4" />
             <span className="hidden sm:inline">Start consultation</span>
             <span className="sm:hidden">Consult</span>

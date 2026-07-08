@@ -170,3 +170,18 @@ class RREstimateRequest(BaseModel):
 
     samples: list[float] = Field(..., description="Per-frame chest brightness/motion values.")
     fps: float = Field(..., gt=0, le=120, description="Frames per second of the samples.")
+
+
+class SeedSegment(BaseModel):
+    role: str = Field(..., description='"doctor" or "patient".')
+    text: str
+
+
+class SeedCaseRequest(BaseModel):
+    """Load a reproducible demo case into a live session: seeds the transcript
+    with the dialogue and runs the analysis on the STRUCTURED encounter (so the
+    result is deterministic, not dependent on live ASR)."""
+
+    patient: PatientContext = Field(default_factory=PatientContext)
+    encounter: Encounter
+    transcript: list[SeedSegment] = Field(default_factory=list)
