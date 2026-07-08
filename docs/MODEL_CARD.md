@@ -1,3 +1,16 @@
+---
+pdf_options:
+  margin: "9mm 12mm"
+css: |
+  body { font-size: 10px; line-height: 1.32; }
+  h1 { margin: 0 0 1px; }
+  h2 { margin: 7px 0 2px; }
+  p, li { margin: 1px 0; }
+  ul, ol { margin: 1px 0; }
+  table { font-size: 8.8px; margin: 3px 0; }
+  th, td { padding: 1px 4px; }
+---
+
 # Codoctor — Model & Data Card
 
 **SciBlitz AI Challenge 2026 · Track A.** Advisory, non-diagnostic clinical decision-support. Live: https://codoctor.vercel.app · Repo: https://github.com/Nafiz001/codoctor
