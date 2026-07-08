@@ -138,6 +138,25 @@ class SessionAnalyzeRequest(BaseModel):
     proposed_meds: list[str] = Field(
         default_factory=list, description="Drug(s) the doctor intends to prescribe."
     )
+    publish: bool = Field(
+        True, description="If false, analyze for the doctor only — don't push to the patient yet."
+    )
+
+
+class PublishRequest(BaseModel):
+    """The doctor sends the reviewed record (summary + prescription + the whole
+    conversation) to the patient's phone."""
+
+    summary: dict = Field(..., description="The patient-facing summary from analyze.")
+    prescription: str = Field("", description="The doctor's confirmed prescription.")
+
+
+class PatientContextUpdate(BaseModel):
+    """The patient fills their own history on their phone."""
+
+    allergies: Optional[list[str]] = None
+    current_meds: Optional[list[str]] = None
+    notes: Optional[str] = None
 
 
 # --- AI feature endpoints --------------------------------------------------

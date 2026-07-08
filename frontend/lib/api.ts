@@ -230,12 +230,14 @@ export interface PatientSummary {
   tone: "red" | "amber" | "brand";
   refer: boolean;
   citations: Citation[];
+  prescription?: string;
+  conversation?: string[];
 }
 
 export interface SessionState {
   id: string;
   status: "waiting" | "ready";
-  patient: { allergies?: string[]; current_meds?: string[] };
+  patient: { allergies?: string[]; current_meds?: string[]; notes?: string };
   devices: { doctor: boolean; patient: boolean };
   counts: { doctor: number; patient: number };
   summary: PatientSummary | null;
@@ -334,6 +336,7 @@ export async function analyzeSession(
     patient: { allergies?: string[]; current_meds?: string[] };
     age_months?: number;
     proposed_meds?: string[];
+    publish?: boolean;
   },
   timeoutMs = 35000
 ): Promise<SessionAnalyzeResult | null> {
@@ -366,6 +369,45 @@ export async function runSessionDemo(
     );
     if (!res.ok) return null;
     return (await res.json()) as SessionAnalyzeResult;
+  } catch {
+    return null;
+  }
+}
+
+/** Send the reviewed record (summary + prescription + conversation) to the patient. */
+export async function publishToPatient(
+  sid: string,
+  summary: PatientSummary,
+  prescription: string
+): Promise<{ session: SessionState; summary: PatientSummary } | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/session/${sid}/publish`,
+      { method: "POST", headers: jsonHeaders, body: JSON.stringify({ summary, prescription }) },
+      20000
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as { session: SessionState; summary: PatientSummary };
+  } catch {
+    return null;
+  }
+}
+
+/** The patient submits their own history; it flows into the session. */
+export async function updatePatientContext(
+  sid: string,
+  updates: { allergies?: string[]; current_meds?: string[]; notes?: string }
+): Promise<SessionState | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/session/${sid}/context`,
+      { method: "POST", headers: jsonHeaders, body: JSON.stringify(updates) },
+      12000
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as SessionState;
   } catch {
     return null;
   }

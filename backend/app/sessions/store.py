@@ -143,6 +143,21 @@ def transcripts(sid: str) -> tuple[list, list] | None:
         return list(rec["segments"]["doctor"]), list(rec["segments"]["patient"])
 
 
+def update_context(sid: str, updates: dict) -> dict | None:
+    """Merge patient-context fields (allergies, current_meds, notes) into the
+    session — used when the patient fills their own form on their phone."""
+    with _lock:
+        rec = _touch(sid)
+        if not rec:
+            return None
+        p = dict(rec.get("patient") or {})
+        for k, v in (updates or {}).items():
+            if v is not None:
+                p[k] = v
+        rec["patient"] = p
+        return _public(rec)
+
+
 def publish(sid: str, summary: dict, analysis: dict | None = None) -> dict | None:
     with _lock:
         rec = _touch(sid)

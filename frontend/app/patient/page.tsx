@@ -32,6 +32,7 @@ import {
   joinSession,
   getSession,
   appendTranscript,
+  updatePatientContext,
   API_URL,
   type PatientSummary,
   type SessionState,
@@ -351,6 +352,8 @@ function LiveSession({ sid }: { sid: string }) {
           </div>
         )}
 
+        <PatientContextForm sid={sid} />
+
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-6 py-8 text-center">
           <Loader2 className="h-6 w-6 animate-spin text-brand-400" />
           <p className="bn mt-3 text-sm font-medium text-ink-soft">
@@ -368,6 +371,101 @@ function LiveSession({ sid }: { sid: string }) {
         </div>
       </div>
     </Shell>
+  );
+}
+
+/* -------------------------------------------------- patient's own history */
+
+function PatientContextForm({ sid }: { sid: string }) {
+  const [allergies, setAllergies] = useState("");
+  const [meds, setMeds] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const split = (s: string) => s.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
+  const inputCls =
+    "mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-ink outline-none focus:border-brand-400";
+
+  const save = async () => {
+    setSaving(true);
+    const ok = await updatePatientContext(sid, {
+      allergies: split(allergies),
+      current_meds: split(meds),
+      notes: notes.trim() || undefined,
+    });
+    setSaving(false);
+    if (ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-200">
+      <div className="flex items-center gap-2 font-semibold text-ink">
+        <Pill className="h-4 w-4 text-brand-500" />
+        <span className="bn">আপনার তথ্য দিন</span>
+        <span className="text-xs font-normal text-ink-faint">· Your details</span>
+      </div>
+      <p className="mt-1 text-xs text-ink-muted">
+        Fill what you know — it appears on the doctor&apos;s screen and saves them
+        asking. (Optional.)
+      </p>
+      <div className="mt-3 space-y-3">
+        <div>
+          <label className="text-xs font-semibold text-ink-muted">
+            <span className="bn">অ্যালার্জি</span> · Allergies
+          </label>
+          <input
+            value={allergies}
+            onChange={(e) => setAllergies(e.target.value)}
+            placeholder="e.g. Penicillin"
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-ink-muted">
+            <span className="bn">বর্তমান ওষুধ</span> · Current medicines
+          </label>
+          <input
+            value={meds}
+            onChange={(e) => setMeds(e.target.value)}
+            placeholder="e.g. Salbutamol"
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-ink-muted">
+            <span className="bn">অন্য কিছু</span> · Anything else
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            placeholder="Other history, symptoms, concerns…"
+            className={cn(inputCls, "resize-none")}
+          />
+        </div>
+      </div>
+      <button
+        onClick={save}
+        disabled={saving}
+        className="mt-3 flex min-h-[2.75rem] w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-sm font-bold text-white transition hover:bg-brand-700 disabled:opacity-60"
+      >
+        {saving ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+          </>
+        ) : saved ? (
+          <>
+            <CheckCircle2 className="h-4 w-4" /> Sent to doctor
+          </>
+        ) : (
+          "Send to doctor"
+        )}
+      </button>
+    </div>
   );
 }
 
@@ -524,6 +622,19 @@ function SummaryScreen({
           {showEn && <p className="mt-1.5 text-xs text-ink-muted">{summary.medsEn}</p>}
         </Card>
 
+        {summary.prescription && (
+          <Card
+            tone="brand"
+            icon={Pill}
+            titleBn="প্রেসক্রিপশন"
+            titleEn={showEn ? "Prescription from the doctor" : undefined}
+          >
+            <p className="whitespace-pre-line text-sm leading-relaxed text-ink-soft">
+              {summary.prescription}
+            </p>
+          </Card>
+        )}
+
         <Card
           tone="red"
           icon={TriangleAlert}
@@ -544,6 +655,25 @@ function SummaryScreen({
             ))}
           </ul>
         </Card>
+
+        {summary.conversation && summary.conversation.length > 0 && (
+          <details className="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-200">
+            <summary className="cursor-pointer text-sm font-semibold text-ink">
+              <span className="bn">কথোপকথন</span>{" "}
+              <span className="font-normal text-ink-faint">· Conversation</span>
+            </summary>
+            <div className="mt-3 space-y-1.5">
+              {summary.conversation.map((line, i) => (
+                <p
+                  key={i}
+                  className="bn rounded-lg bg-slate-50 px-3 py-1.5 text-sm text-ink-soft"
+                >
+                  {line}
+                </p>
+              ))}
+            </div>
+          </details>
+        )}
 
         {mode === "live" && summary.citations?.length > 0 && (
           <div className="rounded-xl bg-white p-4 ring-1 ring-inset ring-slate-200">

@@ -31,6 +31,8 @@ from .models import (
     ReconcileRequest,
     RREstimateRequest,
     SeedCaseRequest,
+    PublishRequest,
+    PatientContextUpdate,
 )
 from .safety.imci import classify_ari
 from .safety.medsafety import check_medication
@@ -489,8 +491,47 @@ def session_analyze(sid: str, req: SessionAnalyzeRequest) -> dict:
         extra_meds=req.proposed_meds,
     )
     summary = build_summary(result["analysis"], req.patient.model_dump())
-    session = sessions.publish(sid, summary, result["analysis"])
+    # Only push to the patient's phone if the doctor asked to (default true keeps
+    # older callers working; the room analyzes first, then sends explicitly).
+    session = (
+        sessions.publish(sid, summary, result["analysis"])
+        if req.publish else sessions.get(sid)
+    )
     return {"session": session, "summary": summary, **result}
+
+
+@app.post("/session/{sid}/publish", tags=["session"])
+def session_publish(sid: str, req: PublishRequest) -> dict:
+    """Send the reviewed record to the patient's phone: the summary, the doctor's
+    prescription, and the full fused conversation."""
+    if sessions.get(sid) is None:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+    summary = dict(req.summary or {})
+    if req.prescription.strip():
+        summary["prescription"] = req.prescription.strip()
+    tr = sessions.transcripts(sid)
+    if tr:
+        device_a, device_b = tr
+        summary["conversation"] = [s["text"] for s in fuse(device_a, device_b)]
+    session = sessions.publish(sid, summary, None)
+    return {"session": session, "summary": summary}
+
+
+@app.post("/session/{sid}/context", tags=["session"])
+def session_context(sid: str, req: PatientContextUpdate) -> dict:
+    """The patient fills their own allergies / meds / notes on their phone; it
+    flows into the session so the doctor's form reflects it."""
+    updates: dict = {}
+    if req.allergies is not None:
+        updates["allergies"] = req.allergies
+    if req.current_meds is not None:
+        updates["current_meds"] = req.current_meds
+    if req.notes is not None:
+        updates["notes"] = req.notes
+    rec = sessions.update_context(sid, updates)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+    return rec
 
 
 @app.post("/session/{sid}/seed-case", tags=["session"])

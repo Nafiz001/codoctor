@@ -28,6 +28,8 @@ import {
   Brain,
   UserRound,
   ClipboardList,
+  Upload,
+  FileText,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { TONES } from "@/components/tone";
@@ -45,12 +47,15 @@ import {
   livePrompts,
   getLiveTranscript,
   seedCase,
+  publishToPatient,
+  extractReport,
   API_URL,
   type SessionState,
   type SessionAnalyzeResult,
   type DoctorAlerts,
   type LivePrompts,
   type FusedSegment,
+  type ReportExtract,
 } from "@/lib/api";
 import type { Tone } from "@/lib/demo-data";
 import { SCENARIOS, type DemoScenario } from "@/lib/scenarios";
@@ -61,6 +66,20 @@ function splitList(s: string): string[] {
     .split(/[,\n]/)
     .map((x) => x.trim())
     .filter(Boolean);
+}
+
+function mergeCsv(existing: string, add: string[]): string {
+  const have = new Set(
+    existing.split(/[,\n]/).map((s) => s.trim().toLowerCase()).filter(Boolean)
+  );
+  const merged = existing.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+  add.forEach((a) => {
+    if (a && !have.has(a.toLowerCase())) {
+      merged.push(a);
+      have.add(a.toLowerCase());
+    }
+  });
+  return merged.join(", ");
 }
 
 function toneForSeverity(sev: string): Tone {
@@ -76,11 +95,17 @@ interface Heard {
 }
 
 export default function RoomPage() {
-  // Clinical context the doctor confirms (golden path defaults).
-  const [allergies, setAllergies] = useState("Penicillin");
-  const [currentMeds, setCurrentMeds] = useState("Salbutamol");
-  const [ageMonths, setAgeMonths] = useState("36");
-  const [proposedMed, setProposedMed] = useState("Amoxicillin");
+  // Clinical context — the doctor's fields start empty (the patient can fill
+  // their own on their phone, which overwrites these). Placeholders show examples.
+  const [allergies, setAllergies] = useState("");
+  const [currentMeds, setCurrentMeds] = useState("");
+  const [ageMonths, setAgeMonths] = useState("");
+  const [proposedMed, setProposedMed] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const [withPatientPhone, setWithPatientPhone] = useState(true);
+  const [report, setReport] = useState<ReportExtract | null>(null);
+  const [attaching, setAttaching] = useState(false);
 
   const [session, setSession] = useState<SessionState | null>(null);
   const [creating, setCreating] = useState(false);
@@ -90,9 +115,13 @@ export default function RoomPage() {
   const [demoRunning, setDemoRunning] = useState(false);
   const [scriptsOpen, setScriptsOpen] = useState(false);
   const [result, setResult] = useState<SessionAnalyzeResult | null>(null);
+  const [prescription, setPrescription] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
   const [live, setLive] = useState<LivePrompts | null>(null);
   const [liveFused, setLiveFused] = useState<FusedSegment[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const patientCtxRef = useRef<string>("");
 
   const sidRef = useRef<string | null>(null);
   sidRef.current = session?.id ?? null;
@@ -117,7 +146,18 @@ export default function RoomPage() {
     if (!session) return;
     const id = setInterval(async () => {
       const s = await getSession(session.id);
-      if (s) setSession(s);
+      if (s) {
+        setSession(s);
+        // If the patient filled their own history, it overwrites the doctor's.
+        const ctx = JSON.stringify(s.patient || {});
+        if (ctx !== patientCtxRef.current) {
+          patientCtxRef.current = ctx;
+          const p = s.patient || {};
+          if (p.allergies?.length) setAllergies(p.allergies.join(", "));
+          if (p.current_meds?.length) setCurrentMeds(p.current_meds.join(", "));
+          if (p.notes) setNotes(p.notes);
+        }
+      }
       if (!result) {
         const lt = await getLiveTranscript(session.id);
         if (lt) setLiveFused(lt.fused);
@@ -180,6 +220,7 @@ export default function RoomPage() {
       },
       age_months: Number(ageMonths) || 36,
       proposed_meds: splitList(proposedMed),
+      publish: false, // analyze for the doctor only — send happens after review
     };
     // Generous timeout (LLM narration can be slow) + one automatic retry so a
     // single transient blip doesn't surface as a failure mid-demo.
@@ -189,11 +230,48 @@ export default function RoomPage() {
     if (out) {
       setResult(out);
       setSession(out.session);
+      setSent(false);
+      // Pre-fill the prescription from the meds the doctor mentioned/proposed.
+      const enc = out.extracted_encounter as { proposed_meds?: string[] };
+      const meds = [...(enc?.proposed_meds ?? []), ...splitList(proposedMed)]
+        .map((m) => m.trim())
+        .filter(Boolean);
+      const lines = [...new Set(meds)];
+      if (out.analysis.safety?.imci?.refer) lines.push("Refer urgently to hospital");
+      setPrescription(lines.join("\n"));
     } else {
       setError(
         "The backend didn't respond in time — it may be busy. Tap Analyze again."
       );
     }
+  };
+
+  // Send the reviewed record (summary + prescription + conversation) to patient.
+  const sendToPatient = async () => {
+    if (!session || !result) return;
+    setSending(true);
+    setError(null);
+    const out = await publishToPatient(session.id, result.summary, prescription);
+    setSending(false);
+    if (out) {
+      setSent(true);
+      setSession(out.session);
+    } else {
+      setError("Couldn't send to the patient — please try once more.");
+    }
+  };
+
+  // Attach a previous report (image/PDF) → AI reads it into the context.
+  const onUploadReport = async (file?: File | null) => {
+    if (!file) return;
+    setAttaching(true);
+    const ex = await extractReport(file);
+    setAttaching(false);
+    if (!ex) return;
+    setReport(ex);
+    if (ex.allergies.length) setAllergies((a) => mergeCsv(a, ex.allergies));
+    if (ex.medications.length) setCurrentMeds((m) => mergeCsv(m, ex.medications));
+    if (ex.summary_bn) setNotes((n) => (n ? n + " · " : "") + ex.summary_bn);
   };
 
   // One-tap golden-path replay — works with no second phone, no live ASR.
@@ -292,6 +370,8 @@ export default function RoomPage() {
     setLive(null);
     setLiveFused([]);
     setHeard([]);
+    setPrescription("");
+    setSent(false);
     setError(null);
     const s = await resetSession(session.id);
     if (s) setSession(s);
@@ -405,54 +485,86 @@ export default function RoomPage() {
           </div>
         </section>
       ) : (
+        <>
         <div className="container-page grid gap-5 py-6 lg:grid-cols-12">
           {/* Left — QR + devices + context */}
           <aside className="space-y-5 lg:col-span-4">
             <div className="card p-5">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-brand-600">
-                <Smartphone className="h-3.5 w-3.5" /> Patient joins here
-              </div>
-              <div className="mt-4 flex items-center gap-4">
-                <div className="rounded-xl bg-white p-2 ring-1 ring-slate-200">
-                  {qrUrl ? (
-                    <QRCodeSVG value={qrUrl} size={104} level="M" />
-                  ) : (
-                    <div className="h-[104px] w-[104px]" />
-                  )}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-brand-600">
+                  <Smartphone className="h-3.5 w-3.5" /> Patient joins here
                 </div>
-                <div className="min-w-0">
-                  <div className="text-xs text-ink-muted">Session code</div>
-                  <div className="font-mono text-2xl font-bold tracking-widest text-ink">
-                    {session.id}
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-ink-faint">
-                    Scan with the patient&apos;s phone to join.
-                  </div>
-                  {qrUrl && (
-                    <a
-                      href={qrUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline"
-                    >
-                      <Smartphone className="h-3 w-3" /> Open patient view ↗
-                    </a>
-                  )}
-                </div>
+                <label className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+                  {withPatientPhone ? "Has phone" : "No phone"}
+                  <button
+                    type="button"
+                    onClick={() => setWithPatientPhone((v) => !v)}
+                    className={cn(
+                      "relative h-6 w-11 rounded-full transition",
+                      withPatientPhone ? "bg-brand-600" : "bg-slate-300"
+                    )}
+                    aria-label="Toggle whether the patient has a phone"
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition",
+                        withPatientPhone ? "left-[22px]" : "left-0.5"
+                      )}
+                    />
+                  </button>
+                </label>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <DevicePill
-                  label="Doctor"
-                  on={session.devices.doctor || dictation.listening}
-                  count={session.counts.doctor}
-                />
-                <DevicePill
-                  label="Patient phone"
-                  on={session.devices.patient}
-                  count={session.counts.patient}
-                />
-              </div>
+              {withPatientPhone ? (
+                <>
+                  <div className="mt-4 flex items-center gap-4">
+                    <div className="rounded-xl bg-white p-2 ring-1 ring-slate-200">
+                      {qrUrl ? (
+                        <QRCodeSVG value={qrUrl} size={104} level="M" />
+                      ) : (
+                        <div className="h-[104px] w-[104px]" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs text-ink-muted">Session code</div>
+                      <div className="font-mono text-2xl font-bold tracking-widest text-ink">
+                        {session.id}
+                      </div>
+                      <div className="mt-2 text-xs leading-relaxed text-ink-faint">
+                        Scan the QR, or enter this code in Patient mode.
+                      </div>
+                      {qrUrl && (
+                        <a
+                          href={qrUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline"
+                        >
+                          <Smartphone className="h-3 w-3" /> Open patient view ↗
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <DevicePill
+                      label="Doctor"
+                      on={session.devices.doctor || dictation.listening}
+                      count={session.counts.doctor}
+                    />
+                    <DevicePill
+                      label="Patient phone"
+                      on={session.devices.patient}
+                      count={session.counts.patient}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="mt-4 rounded-xl bg-slate-50 p-4 text-xs leading-relaxed text-ink-muted ring-1 ring-inset ring-slate-200">
+                  <strong className="font-semibold text-ink-soft">Solo mode.</strong> The
+                  patient has no phone — this phone is the single source of truth. Record
+                  the whole conversation here; the record is shared afterwards.
+                </div>
+              )}
             </div>
 
             <div className="card p-5">
@@ -460,13 +572,14 @@ export default function RoomPage() {
                 <Pill className="h-3.5 w-3.5" /> Clinical context
               </div>
               <p className="mt-2 text-xs text-ink-faint">
-                Confirm what ASR can&apos;t reliably hear. Defaults follow the
-                pediatric IMCI golden path.
+                The patient can fill this on their phone — or confirm what the mic
+                can&apos;t reliably hear.
               </p>
               <MiniField label="Allergies">
                 <input
                   value={allergies}
                   onChange={(e) => setAllergies(e.target.value)}
+                  placeholder="e.g. Penicillin"
                   className="input"
                 />
               </MiniField>
@@ -474,6 +587,7 @@ export default function RoomPage() {
                 <input
                   value={currentMeds}
                   onChange={(e) => setCurrentMeds(e.target.value)}
+                  placeholder="e.g. Salbutamol"
                   className="input"
                 />
               </MiniField>
@@ -483,6 +597,7 @@ export default function RoomPage() {
                     type="number"
                     value={ageMonths}
                     onChange={(e) => setAgeMonths(e.target.value)}
+                    placeholder="36"
                     className="input"
                   />
                 </MiniField>
@@ -490,13 +605,51 @@ export default function RoomPage() {
                   <input
                     value={proposedMed}
                     onChange={(e) => setProposedMed(e.target.value)}
+                    placeholder="e.g. Amoxicillin"
                     className="input"
                   />
                 </MiniField>
               </div>
+              <MiniField label="Anything else">
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Other history, symptoms, concerns…"
+                  rows={2}
+                  className="input resize-none"
+                />
+              </MiniField>
+
+              <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2.5 text-xs font-medium text-ink-muted hover:border-brand-300 hover:text-brand-700">
+                {attaching ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading report…
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-3.5 w-3.5" /> Attach previous report (photo/PDF)
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  onChange={(e) => onUploadReport(e.target.files?.[0])}
+                  disabled={attaching}
+                />
+              </label>
+              {report && (
+                <div className="mt-2 rounded-lg bg-slate-50 p-2.5 text-[11px] leading-relaxed text-ink-muted ring-1 ring-inset ring-slate-200">
+                  <span className="inline-flex items-center gap-1 font-semibold text-ink-soft">
+                    <FileText className="h-3 w-3 text-brand-500" /> From the report
+                  </span>
+                  {report.summary_bn && <p className="bn mt-1">{report.summary_bn}</p>}
+                </div>
+              )}
+
               <button
                 onClick={() => setScriptsOpen(true)}
-                className="btn-ghost mt-4 w-full text-xs"
+                className="btn-ghost mt-3 w-full text-xs"
               >
                 <ClipboardList className="h-3.5 w-3.5" /> Demo scripts · {SCENARIOS.length} cases
               </button>
@@ -542,13 +695,24 @@ export default function RoomPage() {
               <div className="flex-1 space-y-2.5 overflow-y-auto px-5 py-5">
                 {liveFused.length === 0 && heard.length === 0 && !dictation.interim ? (
                   <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                      <Mic className="h-5 w-5" />
-                    </div>
-                    <p className="mt-3 max-w-xs text-sm text-ink-faint">
-                      Tap <strong>Listen</strong> and speak in Bangla. Both phones
-                      stream in and fuse here live — <span className="text-emerald-700">green</span> marks
-                      words the patient&apos;s phone contributed.
+                    <button
+                      onClick={dictation.listening ? dictation.stop : dictation.start}
+                      disabled={!dictation.supported}
+                      className={cn(
+                        "flex h-20 w-20 items-center justify-center rounded-full shadow-soft transition",
+                        dictation.listening
+                          ? "animate-pulse bg-red-500 text-white"
+                          : "bg-brand-600 text-white hover:bg-brand-700",
+                        !dictation.supported && "cursor-not-allowed opacity-50"
+                      )}
+                      aria-label="Start listening"
+                    >
+                      <Mic className="h-7 w-7" />
+                    </button>
+                    <p className="mt-4 max-w-xs text-sm text-ink-faint">
+                      Tap the mic and speak in Bangla. Both phones fuse here live —{" "}
+                      <span className="text-emerald-700">green</span> marks the patient
+                      phone&apos;s words.
                     </p>
                   </div>
                 ) : (
@@ -589,7 +753,7 @@ export default function RoomPage() {
                         </>
                       ) : (
                         <>
-                          <Send className="h-4 w-4" /> Analyze & send to patient
+                          <Sparkles className="h-4 w-4" /> Analyze
                         </>
                       )}
                     </button>
@@ -625,24 +789,85 @@ export default function RoomPage() {
             </div>
           </section>
 
-          {/* Right — live co-pilot (during) → analysis (after) */}
+          {/* Right — live co-pilot (during) → pointer to the result below (after) */}
           <section className="space-y-5 lg:col-span-4">
             {result ? (
-              <RoomResult result={result} />
+              <div className="card flex h-[640px] flex-col items-center justify-center p-8 text-center">
+                <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                <p className="mt-3 max-w-xs text-sm font-semibold text-ink-soft">
+                  Analysis ready ↓
+                </p>
+                <p className="mt-1 max-w-xs text-xs text-ink-faint">
+                  Review the result and prescription below, then send the record to
+                  the patient.
+                </p>
+              </div>
             ) : live && (live.red_flags.length > 0 || live.ask_these.length > 0) ? (
               <LiveCoPilot live={live} />
             ) : (
               <div className="card flex h-[640px] flex-col items-center justify-center p-8 text-center">
                 <Sparkles className="h-8 w-8 text-brand-300" />
                 <p className="mt-3 max-w-xs text-sm text-ink-faint">
-                  As you speak, the co-pilot suggests what to ask next here — then
-                  after you analyze, the grounded result appears and the
-                  patient&apos;s phone updates with a spoken Bangla summary.
+                  As you speak, the co-pilot suggests what to ask next here.
                 </p>
               </div>
             )}
           </section>
         </div>
+
+        {/* Full-width result — horizontally below the live conversation */}
+        {result && (
+          <div className="container-page pb-10">
+            <RoomResult result={result} />
+
+            <div className="card mt-5 p-5">
+              <div className="flex items-center gap-2 font-semibold text-ink">
+                <Pill className="h-4 w-4 text-brand-500" /> Prescription
+              </div>
+              <p className="mt-1 text-xs text-ink-muted">
+                Pre-filled from the medicines mentioned. Edit freely — one per line.
+              </p>
+              <textarea
+                value={prescription}
+                onChange={(e) => setPrescription(e.target.value)}
+                rows={4}
+                placeholder={"e.g.\nParacetamol syrup 5ml, three times daily"}
+                className="input mt-3 resize-y"
+              />
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  onClick={sendToPatient}
+                  disabled={sending || sent}
+                  className="btn-primary"
+                >
+                  {sending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Sending…
+                    </>
+                  ) : sent ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" /> Sent to patient
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" /> Send record to patient
+                    </>
+                  )}
+                </button>
+                <button onClick={newConsult} className="btn-secondary">
+                  <RotateCcw className="h-4 w-4" /> New consultation
+                </button>
+              </div>
+              {sent && (
+                <p className="mt-2 text-xs text-emerald-700">
+                  The conversation, summary, and prescription are now on the
+                  patient&apos;s phone.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+        </>
       )}
     </div>
   );
