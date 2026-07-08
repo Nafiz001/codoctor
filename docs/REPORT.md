@@ -93,7 +93,7 @@ The high-stakes outputs are computed by auditable rule engines, not an LLM:
 A **LangGraph** state machine: `intake → retrieve → run_tools → critic → differential → completeness → synthesize`. The **critic** checks that every surfaced claim is backed by a retrieved source; if (say) a medication contraindication is not yet grounded, it **routes back to `retrieve`** with an expanded query before `synthesize`. Synthesis composes a grounded, cited answer in Bangla and English; if nothing grounds, it **refuses honestly** rather than inventing. When a key is set, Bangla narration is polished by GPT-4o-mini behind a **grounding guard** that rejects any output introducing a drug the engines never surfaced. Finally the engines' outputs are aggregated into the **doctor co-pilot**: red flags (danger signs + critical drug blocks), still-to-ask guideline checks, cautions, and the ranked differential — pure deterministic aggregation, prioritized for a 90-second consult.
 
 ### 4.5 Voice & accessibility
-The `/live` page uses the **browser Web Speech API** for keyless Bangla speech-to-text, and the patient view uses browser speech *synthesis* to read the summary aloud — both zero-cost and offline-capable on supported devices.
+The `/live` and `/room` pages use the **browser Web Speech API** for keyless in-browser Bangla speech-to-text, while uploaded mobile audio is transcribed server-side by **OpenAI Whisper** (`/transcribe`); the patient view uses browser speech *synthesis* to read the summary aloud — the in-browser paths are zero-cost and work offline on supported devices.
 
 ---
 
@@ -125,7 +125,7 @@ We evaluate on a hand-built labelled set covering the demo case plus edge cases 
 | | Citation present | **3/3 (100%)** |
 | | Honest-refusal accuracy | **1/1 (100%)** |
 
-Unit tests: **29/29 pass** (`safety` 9 · `rag` 6 · `asr` 4 · `agents` 6 · `sessions` 4). All numbers are measured on the keyless deterministic path, so they hold for any cold visit to the live URL.
+Unit tests: **47/47 pass** (`safety` 9 · `rag` 6 · `asr` 4 · `agents` 6 · `sessions` 4 · `features` 18). All numbers are measured on the keyless deterministic path, so they hold for any cold visit to the live URL.
 
 **The self-reflective loop, observed live.** On the demo case the orchestrator's trace is:
 `intake → retrieve → run_tools(critical) → critic:FLAG (formulary source missing) → retrieve(expanded) → run_tools → critic:OK → synthesize` — i.e. the critic **caught its own grounding gap, re-retrieved, then synthesized**, citing both WHO IMCI and the National Formulary (2 retrieval passes). This is verifiable live at `/consult/analyze`.
@@ -143,7 +143,7 @@ Unit tests: **29/29 pass** (`safety` 9 · `rag` 6 · `asr` 4 · `agents` 6 · `s
 - **Demo data.** The doctor cockpit *plays* a scripted consultation for a reliable stage demo (the rulebook's deterministic-fallback best practice); the live agentic results come from the deployed backend.
 - **No real EHR integration** yet — the longitudinal record is one Codoctor builds itself.
 
-**Future work.** Server-side cloud Bengali ASR and speaker diarization; WebSocket real-time sync (today: ~3s HTTP polling) and a durable longitudinal record (today: in-memory session + on-device summary); swap the dense retriever for **BGE-M3** and broaden the corpus beyond pediatric ARI; clinical validation with a partner facility and a doctor co-sign; DGHS facility-directory referral routing.
+**Future work.** Speaker diarization (today: time + lexical-overlap fusion); WebSocket real-time sync (today: ~3s HTTP polling) and a durable longitudinal record (today: in-memory session + on-device summary); swap the OpenAI dense embeddings for self-hosted **BGE-M3** and broaden the corpus beyond pediatric ARI; clinical validation with a partner facility and a doctor co-sign; DGHS facility-directory referral routing.
 
 ---
 

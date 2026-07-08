@@ -28,7 +28,8 @@ css: |
 |---|---|---|---|---|
 | **GPT-4o-mini** | OpenAI | **Key-optional, two roles:** (1) structured clinical-entity extraction from the fused Bangla transcript, merged *on top of* a deterministic lexicon floor it can add to but never override; (2) Bangla narration — *rephrases already-grounded findings only*, behind a guard rejecting un-grounded drug mentions | Proprietary (commercial API) | **Not required.** System runs fully without any key (regex Scribe + template narration). The LLM never makes a clinical decision. `ANTHROPIC_API_KEY`/Claude Haiku is a supported alternative. |
 | **text-embedding-3-small** | OpenAI | **Key-optional** dense semantic ranker fused (RRF) with BM25 + TF-IDF for cross-lingual retrieval | Proprietary (commercial API) | Corpus embedded once and cached; only the query embedded per request. Without a key, retrieval is the keyless two-ranker hybrid. |
-| **Web Speech API — SpeechRecognition** | Browser/OS (e.g. Chrome → Google) | Keyless Bangla speech-to-text on `/room` and `/live` | Browser-provided service | No model shipped or trained by us; availability/quality depend on the user's browser. |
+| **Whisper (`whisper-1`)** | OpenAI | Server-side Bangla speech-to-text for uploaded mobile audio (`/transcribe`), language auto-detect | Proprietary (commercial API) | Used when a device sends audio (e.g. the mobile app / iOS). Falls back to the keyless in-browser recognizer below when no key is set. |
+| **Web Speech API — SpeechRecognition** | Browser/OS (e.g. Chrome → Google) | Keyless in-browser Bangla speech-to-text on `/room` and `/live` | Browser-provided service | No model shipped or trained by us; availability/quality depend on the user's browser (Chrome/Edge; not iOS Safari). |
 | **Web Speech API — SpeechSynthesis** | Browser/OS | Reads the patient's Bangla summary aloud | Browser-provided service | Same as above. |
 | BGE-M3 (`BAAI/bge-m3`) | BAAI | Self-hosted dense retrieval | MIT | **Planned replacement** for the OpenAI embedding dependency; the `retriever.search()` contract is the swap-in point. |
 
@@ -47,13 +48,13 @@ We reproduce **no copyrighted text verbatim at scale** — corpus entries are co
 
 ## Evaluation results
 
-Software-correctness on our authored set (`python backend/eval/run_eval.py`), **not** patient-outcome accuracy: IMCI classification **17/17**; danger-sign recall **5/5 (0 missed)**; specificity **12/12 (0 false referrals)**; medication-safety catch **7/7** with **0/6 false-positives**; orchestrator grounding + citation **3/3**; honest refusal on insufficient data **1/1**. Unit tests **29/29** — all measured on the keyless deterministic path.
+Software-correctness on our authored set (`python backend/eval/run_eval.py`), **not** patient-outcome accuracy: IMCI classification **17/17**; danger-sign recall **5/5 (0 missed)**; specificity **12/12 (0 false referrals)**; medication-safety catch **7/7** with **0/6 false-positives**; orchestrator grounding + citation **3/3**; honest refusal on insufficient data **1/1**. Unit tests **47/47** (safety 9 · rag 6 · asr 4 · agents 6 · sessions 4 · features 18) — all measured on the keyless deterministic path.
 
 ## Known limitations & ethical considerations
 
 - **Advisory & non-diagnostic.** Does not diagnose, prescribe, or replace a clinician; every output requires clinician confirmation. Deterministic engines make the high-stakes calls; the LLM only narrates.
 - **Not clinically validated.** Reported numbers are software-correctness on a curated set, **not** patient-outcome accuracy. Scope is currently **pediatric acute respiratory infection (WHO IMCI)** only; a small corpus over-represents the modelled condition.
 - **Guideline currency.** Paraphrased chunks may lag official updates — always defer to the current WHO/DGHS/NDF source.
-- **Voice reliability.** Browser Bangla ASR degrades on dialect/noise and is unavailable on iOS Safari; mitigated by dual-mic fusion, a typed/seeded fallback, and the scripted `/doctor` path. No speaker diarization — streams are fused by timing + lexical overlap (genuine same-utterance merges only).
-- **Engineering limits (honest).** Live session is in-memory (single process, ~2h TTL; a restart clears it) and syncs by ~3s HTTP polling, not WebSockets; the patient summary persists only on the patient's device. No durable longitudinal record, dense retriever, or clinician co-sign yet.
+- **Voice reliability.** Bangla ASR degrades on dialect/noise; the in-browser recognizer is unavailable on iOS Safari (server-side Whisper covers uploaded mobile audio). Mitigated by dual-mic fusion, a typed/seeded fallback, and the scripted `/doctor` path. No speaker diarization — streams are fused by timing + lexical overlap (genuine same-utterance merges only).
+- **Engineering limits (honest).** Live session is in-memory (single process, ~2h TTL; a restart clears it) and syncs by ~3s HTTP polling, not WebSockets; the patient summary persists only on the patient's device. No durable longitudinal record or clinician co-sign yet.
 - **Privacy & misuse.** Processed in-session; the patient owns their record; no PII retained server-side. Unsupervised self-treatment is an explicit risk — the UI keeps a clinician/facility in the loop and states the advisory scope. Broadening coverage and clinical co-sign are required before any real-world use.

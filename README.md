@@ -84,7 +84,7 @@ cd backend && python eval/run_eval.py
 | Orchestrator grounding / citation | **3/3 (100%)** |
 | Honest refusal on insufficient data | **1/1 (100%)** |
 
-Unit tests: **29/29** (`safety` 9 · `rag` 6 · `asr` 4 · `agents` 6 · `sessions` 4) — `python backend/tests/test_*.py`. All numbers are measured on the keyless deterministic path, so they hold for any judge's cold visit.
+Unit tests: **47/47** (`safety` 9 · `rag` 6 · `asr` 4 · `agents` 6 · `sessions` 4 · `features` 18) — `python backend/tests/test_*.py`. All numbers are measured on the keyless deterministic path, so they hold for any judge's cold visit.
 
 ## Routes
 
@@ -105,7 +105,7 @@ Unit tests: **29/29** (`safety` 9 · `rag` 6 · `asr` 4 · `agents` 6 · `sessio
 | Agents | LangGraph orchestrator (intake → retrieve → tools → critic → differential → completeness → synthesize) + doctor co-pilot aggregation |
 | Scribe | **GPT-4o-mini structured extraction** (key-optional) merged over a lexicon/regex floor |
 | Retrieval | Hybrid **BM25 + TF-IDF + OpenAI dense embeddings (key-optional), RRF-fused** over a curated, cited WHO IMCI / DGHS STG / National Formulary corpus |
-| ASR / TTS | **Browser Web Speech API** (`bn-BD`) — keyless; with a typed/seeded fallback |
+| ASR / TTS | **OpenAI Whisper** (`whisper-1`) for uploaded mobile audio + keyless **Browser Web Speech API** (`bn-BD`) in-browser; with a typed/seeded fallback |
 | LLM | OpenAI **GPT-4o-mini** (key-optional) for extraction + Bangla **narration only** — never the high-stakes decision; deterministic fallbacks throughout |
 | Safety core | Deterministic WHO IMCI danger-sign tree + drug allergy/interaction/duplication engine |
 | Live sync | Short HTTP polling (~3s) between the two devices' views |
