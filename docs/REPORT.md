@@ -1,3 +1,15 @@
+---
+css: |
+  body { font-size: 13.5px; line-height: 1.5; }
+  h1 { font-size: 22px; }
+  h2 { font-size: 15.5px; }
+  h3 { font-size: 13.5px; }
+  table { font-size: 11.5px; }
+  th, td { padding: 3px 6px; }
+  code { font-size: 11px; }
+  pre { font-size: 10.5px; }
+---
+
 # Codoctor — Project Report
 ### An ambient Bangla clinical co-pilot, safety-net, and patient-held record for Bangladesh's overloaded OPDs
 
@@ -157,8 +169,6 @@ Codoctor does not claim to invent ambient clinical AI. The category is proven at
 ```bash
 cd backend && python -m venv .venv && .venv\Scripts\activate
 pip install -r requirements.txt
-python tests/test_safety.py     # 9/9    (also: test_rag 6, test_asr 4, test_agents 6, test_sessions 4)
+python tests/test_safety.py     # 9/9    (also: test_rag 6, test_asr 4, test_agents 6, test_sessions 4, test_features 18 → 47 total)
 python eval/run_eval.py         # the table in §6
 ```
-
-*Convert this report to PDF (≤8 pages, ≥10pt) before submission — e.g. `pandoc docs/REPORT.md -o REPORT.pdf`, VS Code "Markdown PDF", or print-to-PDF from a Markdown preview.*
