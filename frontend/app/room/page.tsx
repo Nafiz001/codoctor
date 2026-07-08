@@ -126,28 +126,28 @@ export default function RoomPage() {
     return () => clearInterval(id);
   }, [session?.id, result]);
 
-  // Real-time co-pilot: as the doctor speaks, ask the next guideline question
-  // (incl. "ask about the allergy" once a drug is mentioned). Runs until analyze.
+  // Real-time co-pilot: from the WHOLE conversation so far (both phones, fused)
+  // suggest the next guideline question — and with a drug + unknown allergy in
+  // play, prompt to ask about it. Re-runs each time the fused transcript grows.
   useEffect(() => {
-    if (!session || result || heard.length === 0) return;
+    if (!session || result) return;
+    const convo = liveFused.length
+      ? liveFused.map((s) => s.text).join(" ")
+      : heard.map((h) => h.text).join(" ");
+    if (!convo.trim()) return;
     let stop = false;
-    const tick = async () => {
-      const text = `${heard.map((h) => h.text).join(" ")} ${proposedMed}`.trim();
-      const p = await livePrompts(
-        text,
-        Number(ageMonths) || 36,
-        splitList(allergies),
-        splitList(currentMeds)
-      );
+    livePrompts(
+      `${convo} ${proposedMed}`.trim(),
+      Number(ageMonths) || 36,
+      splitList(allergies),
+      splitList(currentMeds)
+    ).then((p) => {
       if (!stop && p) setLive(p);
-    };
-    void tick();
-    const id = setInterval(tick, 5000);
+    });
     return () => {
       stop = true;
-      clearInterval(id);
     };
-  }, [session?.id, heard.length, result]);
+  }, [session?.id, liveFused, heard.length, result, proposedMed, allergies, currentMeds, ageMonths]);
 
   const start = async () => {
     setCreating(true);
