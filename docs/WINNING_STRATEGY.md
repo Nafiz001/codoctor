@@ -128,7 +128,7 @@ Effort: S = <½ day · M = 1–2 days · L = 3+ days. Priority: P0 = must-ship �
 
 **≤8-page report (mini research paper):** p.1 problem + consult-length stat + thesis; p.2 system diagram + eval table; then deterministic-safety, fusion + micro-ablation, grounding/RAG, impact + pilot, ethics/limitations, references. **Re-verify every external citation against the actual source before submission and drop any you cannot open** — the citation layer has already produced misattributions, and one exposed fabrication discredits the whole report.
 
-**Model & Data card (CHAI nutrition-label):** intended use (advisory, non-diagnostic, pediatric-ARI golden path, clinician-in-the-loop); out-of-scope; data = 16-doc cited corpus (WHO IMCI / DGHS STG / National Formulary) + keyless Web Speech ASR with a WER caveat; evaluation = your numbers; limitations stated plainly (HTTP polling not WebSockets; no diarization; narrow corpus; no dense retriever; ephemeral in-memory session; iOS-Safari ASR gap; no co-sign-at-scale; free-tier sleep/restart); human oversight.
+**Model & Data card (CHAI nutrition-label):** intended use (advisory, non-diagnostic, pediatric-ARI golden path, clinician-in-the-loop); out-of-scope; data = 16-doc cited corpus (WHO IMCI / DGHS STG / National Formulary) + keyless Web Speech ASR with a WER caveat; evaluation = your numbers; limitations stated plainly (HTTP polling not WebSockets; no diarization; narrow corpus; no dense retriever; ephemeral in-memory session; iOS-Safari ASR gap; no co-sign-at-scale; in-memory session cleared on a server restart); human oversight.
 
 ---
 

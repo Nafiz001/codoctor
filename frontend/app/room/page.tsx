@@ -86,7 +86,7 @@ export default function RoomPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") setOrigin(window.location.origin);
-    // Wake a sleeping free-tier backend now, so "Start" is fast when clicked.
+    // Open a connection to the backend now, so "Start" is instant when clicked.
     warmBackend();
   }, []);
 
@@ -121,7 +121,7 @@ export default function RoomPage() {
     } else {
       setError(
         API_URL
-          ? "Couldn't reach the backend — a sleeping free-tier server can take ~30s to wake. Try again."
+          ? "Couldn't reach the backend just now — please try again in a moment."
           : "Backend URL isn't configured for this build (NEXT_PUBLIC_API_URL)."
       );
     }
@@ -168,7 +168,7 @@ export default function RoomPage() {
       setDemoRunning(false);
       setError(
         API_URL
-          ? "Couldn't reach the backend — a sleeping free-tier server can take ~30s to wake. Try again."
+          ? "Couldn't reach the backend just now — please try again in a moment."
           : "Backend URL isn't configured for this build (NEXT_PUBLIC_API_URL)."
       );
       return;
@@ -281,8 +281,7 @@ export default function RoomPage() {
             </p>
             {creating && (
               <p className="mt-4 text-xs text-ink-faint">
-                Waking the free-tier server can take up to a minute on the first
-                request — hang tight.
+                Setting up the session — one moment.
               </p>
             )}
             {error && (

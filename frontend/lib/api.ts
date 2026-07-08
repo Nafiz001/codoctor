@@ -1,6 +1,6 @@
-// Client for the Codoctor backend (FastAPI on Render).
+// Client for the Codoctor backend (FastAPI on Azure App Service).
 // If NEXT_PUBLIC_API_URL is unset or the call fails/times out, callers fall back
-// to the scripted demo — so the cockpit never breaks if the backend is asleep.
+// to the scripted demo — so the cockpit never breaks even if the backend is down.
 
 // Sanitize the env value: a BOM / zero-width char or stray whitespace at the
 // front (easy to introduce when setting the var) makes the URL lose its scheme,
@@ -241,7 +241,7 @@ export interface SessionAnalyzeResult extends FromTranscriptResult {
 
 const jsonHeaders = { "Content-Type": "application/json" };
 
-/** Fire-and-forget ping to wake a sleeping free-tier backend ahead of use. */
+/** Fire-and-forget ping to open a connection to the backend ahead of use. */
 export function warmBackend(): void {
   if (!API_URL) return;
   fetch(`${API_URL}/health`).catch(() => {});
@@ -257,7 +257,7 @@ export async function createSession(patient: {
     const res = await withTimeout(
       `${API_URL}/session/create`,
       { method: "POST", headers: jsonHeaders, body: JSON.stringify({ patient }) },
-      75000 // a cold Render free-tier server can take ~50–60s to wake
+      30000 // Azure Always On responds in <1s; generous ceiling for the first hit after a deploy
     );
     if (!res.ok) return null;
     return (await res.json()) as SessionState;

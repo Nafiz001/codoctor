@@ -209,9 +209,9 @@ RAG is the **trust layer** — every suggestion the doctor sees cites a clause. 
 - **Backend:** Python **FastAPI** on **Render** (full-stack tier) for agent orchestration + ML. WebSocket for live transcript/agent stream.
 - **Agents:** **LangGraph**. **LLM (narration only):** GPT-4o / Gemini / Claude. **Vector DB:** Chroma/FAISS (precomputed, survives sleep).
 - **ASR:** ✅ **Cloud Bengali ASR** (Google Speech-to-Text `bn-BD` or Whisper API; §5.3 permits APIs) for live capture, **always paired with a deterministic "replay sample consultation" fallback** so a misrecognition on stage can never break the demo.
-- ✅ **Locked (Jun 5):** split frontend (Next.js/Vercel) + backend (FastAPI/Render); **pediatric ARI / WHO IMCI** as the golden-path clinical scenario.
+- ✅ **Locked (Jun 5):** split frontend (Next.js/Vercel) + backend (FastAPI, now on Azure App Service); **pediatric ARI / WHO IMCI** as the golden-path clinical scenario.
 
-> Free tiers sleep → precompute the index, keep models small, **pre-warm the morning of July 9** (rulebook §9.3), keep the demo video as backup.
+> Backend on **Azure App Service (Always On)** — no cold start; keep models small, **verify /health the morning of July 9** (rulebook §9.3), keep the demo video as backup.
 
 ---
 
@@ -273,7 +273,7 @@ Pick a small, honest gold set (30–50 scripted consultations + BanglaMedQA slic
 | Doctors reject being "graded" | Completeness reframed as a co-pilot checklist, not an audit |
 | No real EHR | System builds the record itself; seed mock history; honest "future: integrate with DGHS" |
 | Scope creep in 3.5 weeks | Ruthlessly scope to the §12 golden path; everything else is "architected, not built" |
-| Free-tier sleep at judging | Precompute index, pre-warm July 9, video backup |
+| Backend down at judging | Azure App Service Always On (no cold start); verify /health July 9; video backup |
 | Privacy/liability | Consent-first, in-session, model-card disclosure, doctor co-sign |
 
 ---

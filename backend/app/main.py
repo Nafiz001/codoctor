@@ -26,13 +26,21 @@ from .models import (
     JoinRequest,
     TranscriptAppend,
     SessionAnalyzeRequest,
+    LivePromptRequest,
+    DoseRequest,
+    ReconcileRequest,
+    RREstimateRequest,
 )
 from .safety.imci import classify_ari
 from .safety.medsafety import check_medication
+from .safety.dosing import dose as compute_dose
+from .safety.reconcile import reconcile as reconcile_meds
 from .rag.retriever import HybridRetriever
-from .agents.graph import run_consultation
+from .agents.graph import run_consultation, doctor_alerts
+from .agents.completeness import next_questions
 from .asr.fusion import fuse, transcript_text
 from .asr.scribe import extract
+from .asr.rr import estimate_rr
 from .sessions import store as sessions
 from .sessions.summary import build_summary
 from .sessions.demo_seed import (
@@ -114,6 +122,59 @@ def assess_medication(check: MedicationCheck) -> dict:
         "findings": findings,
         "blocked": any(f["severity"] == "critical" for f in findings),
     }
+
+
+@app.post("/consult/live-prompts", tags=["agents"])
+def consult_live_prompts(req: LivePromptRequest) -> dict:
+    """Real-time co-pilot: from the conversation so far, return the guideline
+    questions the doctor has not asked yet, plus any danger sign already audible.
+    Called every few seconds during the consultation."""
+    enc = extract(req.transcript)
+    if req.age_months is not None:
+        enc["age_months"] = req.age_months
+    vitals = enc.get("vitals") or {}
+    imci = classify_ari(
+        age_months=enc.get("age_months", 36),
+        respiratory_rate=vitals.get("respiratory_rate"),
+        chest_indrawing=enc.get("chest_indrawing", False),
+        stridor=enc.get("stridor", False),
+        general_danger_signs=enc.get("general_danger_signs", []),
+    )
+    red_flags = []
+    if imci["refer"]:
+        red_flags.append({
+            "title": imci["classification"],
+            "detail": "; ".join(imci.get("reasons", [])) or imci.get("action", ""),
+            "citation": imci.get("citation"),
+        })
+    return {
+        "ask_these": next_questions(enc),
+        "red_flags": red_flags,
+        "extracted": enc,
+    }
+
+
+@app.post("/assess/dose", tags=["safety"])
+def assess_dose(req: DoseRequest) -> dict:
+    """Weight-based paediatric dose for a drug (deterministic)."""
+    return compute_dose(req.drug, req.weight_kg, req.age_months)
+
+
+@app.post("/assess/reconcile", tags=["safety"])
+def assess_reconcile(req: ReconcileRequest) -> dict:
+    """Reconcile a proposed prescription against current + previous-report meds."""
+    return reconcile_meds(
+        proposed=req.proposed,
+        allergies=req.allergies,
+        current_meds=req.current_meds,
+        past_meds=req.past_meds,
+    )
+
+
+@app.post("/estimate-rr", tags=["asr"])
+def estimate_respiratory_rate(req: RREstimateRequest) -> dict:
+    """Estimate breaths/min from a per-frame chest breathing signal."""
+    return estimate_rr(req.samples, req.fps)
 
 
 @app.post("/rag/search", tags=["rag"])
@@ -221,6 +282,131 @@ async def transcribe_audio(
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
+
+
+# --- Previous medical report extraction (photo / PDF) -----------------------
+
+_REPORT_PROMPT = (
+    "You are a clinical assistant reading a patient's previous medical document "
+    "(a prescription, lab report, or discharge slip) that may be in Bangla, "
+    "English, or both, and may be handwritten. Extract only what is clearly "
+    "present. Respond as compact JSON with exactly these keys: "
+    '"conditions" (array of diagnoses/problems), '
+    '"medications" (array of drug names, generic if possible), '
+    '"allergies" (array), '
+    '"summary_en" (one short plain sentence), '
+    '"summary_bn" (the same short sentence in simple Bangla). '
+    "Use empty arrays/strings when nothing is found. Do not invent anything."
+)
+
+
+def _structure_report_text(client, text: str) -> dict:
+    """Ask the LLM to structure already-extracted document text."""
+    import json
+
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": _REPORT_PROMPT},
+            {"role": "user", "content": f"Document text:\n\n{text[:6000]}"},
+        ],
+    )
+    return json.loads(resp.choices[0].message.content or "{}")
+
+
+@app.post("/extract-report", tags=["asr"])
+async def extract_report(
+    file: UploadFile = File(...),
+) -> dict:
+    """Extract structured medical info from a patient's previous report.
+
+    Accepts a photo (jpg/png — e.g. the doctor photographs a paper slip in the
+    field) or a PDF. Uses OpenAI vision for images and text extraction for PDFs.
+    Returns {conditions, medications, allergies, summary_en, summary_bn, source}.
+    503 if OPENAI_API_KEY is not configured so the app can degrade gracefully.
+    """
+    import base64
+    import json
+
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Report reading not configured on this server (OPENAI_API_KEY missing).",
+        )
+
+    data = await file.read()
+    content_type = (file.content_type or "").lower()
+    name = (file.filename or "").lower()
+    is_pdf = "pdf" in content_type or name.endswith(".pdf")
+
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=api_key)
+
+        if is_pdf:
+            # Text-based PDF → pull text, then structure it.
+            try:
+                import io as _io
+                from pypdf import PdfReader
+
+                reader = PdfReader(_io.BytesIO(data))
+                text = "\n".join((p.extract_text() or "") for p in reader.pages)
+            except Exception:
+                text = ""
+            if not text.strip():
+                raise HTTPException(
+                    status_code=422,
+                    detail="Could not read text from this PDF. Try a photo of the report instead.",
+                )
+            result = _structure_report_text(client, text)
+            source = "pdf"
+        else:
+            # Image → vision extraction.
+            mime = content_type if content_type.startswith("image/") else "image/jpeg"
+            b64 = base64.b64encode(data).decode()
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": _REPORT_PROMPT},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Extract from this document image."},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{mime};base64,{b64}"},
+                            },
+                        ],
+                    },
+                ],
+            )
+            result = json.loads(resp.choices[0].message.content or "{}")
+            source = "image"
+
+        # Normalize the shape so the client can rely on it.
+        def _as_list(v):
+            if isinstance(v, list):
+                return [str(x).strip() for x in v if str(x).strip()]
+            if isinstance(v, str) and v.strip():
+                return [v.strip()]
+            return []
+
+        return {
+            "conditions": _as_list(result.get("conditions")),
+            "medications": _as_list(result.get("medications")),
+            "allergies": _as_list(result.get("allergies")),
+            "summary_en": str(result.get("summary_en") or "").strip(),
+            "summary_bn": str(result.get("summary_bn") or "").strip(),
+            "source": source,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Report extraction failed: {exc}") from exc
 
 
 # --- Live session: the real two-device flow joined by a QR code ------------

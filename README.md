@@ -6,7 +6,7 @@
 **Built for the SciBlitz AI Challenge 2026 — IEEE Student Branch, CUET · Track A (Health & Society).**
 
 🔗 **Live (no login):** https://codoctor.vercel.app — open `/room` in **Chrome/Edge** and click **Run demo consultation**.
-🔗 **API:** https://codoctor-api.onrender.com/docs
+🔗 **API:** https://codoctor-api-afdkbhe8d4bpffb5.centralindia-01.azurewebsites.net/docs
 
 ---
 
@@ -101,7 +101,7 @@ Unit tests: **29/29** (`safety` 9 · `rag` 6 · `asr` 4 · `agents` 6 · `sessio
 | Layer | Choice |
 |---|---|
 | Frontend | Next.js 14 + Tailwind on Vercel |
-| Backend | Python FastAPI on Render |
+| Backend | Python FastAPI on Azure App Service (Always On — no cold start) |
 | Agents | LangGraph orchestrator (intake → retrieve → tools → critic → differential → completeness → synthesize) + doctor co-pilot aggregation |
 | Scribe | **GPT-4o-mini structured extraction** (key-optional) merged over a lexicon/regex floor |
 | Retrieval | Hybrid **BM25 + TF-IDF + OpenAI dense embeddings (key-optional), RRF-fused** over a curated, cited WHO IMCI / DGHS STG / National Formulary corpus |
@@ -131,7 +131,30 @@ npm run dev                                              # http://localhost:3000
 
 Open `http://localhost:3000/room` in Chrome → **Run demo consultation**, or scan the QR with a phone to join a live two-device session.
 
-> Notes: mic + Bangla speech recognition need **Chrome/Edge** (not iOS Safari). The hosted backend is on Render's free tier and **sleeps after ~15 min idle** — the first request may take ~30–60s to wake.
+> Notes: mic + Bangla speech recognition need **Chrome/Edge** (not iOS Safari). The hosted backend runs on **Azure App Service with Always On**, so it stays warm and answers the first request immediately — no cold start.
+
+## Deploy the backend (Azure — no cold start)
+
+The backend runs on **Azure App Service (Linux)** with **Always On** enabled, so the first judge request is served instantly (no free-tier sleep). One-time setup with the `az` CLI:
+
+```bash
+cd backend
+
+# 1) Create the app (B1 is the cheapest tier that supports Always On).
+az webapp up --name codoctor-api --runtime "PYTHON:3.12" \
+  --sku B1 --location southeastasia          # southeastasia (Singapore) ≈ closest to Bangladesh
+
+# 2) Turn OFF cold start + let Azure build the deps + start uvicorn.
+az webapp config set -g <resource-group> --name codoctor-api --always-on true \
+  --startup-file "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+az webapp config appsettings set -g <resource-group> --name codoctor-api \
+  --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true OPENAI_API_KEY=<optional-key>
+```
+
+Verify: `https://codoctor-api-afdkbhe8d4bpffb5.centralindia-01.azurewebsites.net/health` → `{"status":"ok"}`, docs at `/docs`.
+Then set **`NEXT_PUBLIC_API_URL=https://codoctor-api-afdkbhe8d4bpffb5.centralindia-01.azurewebsites.net`** in the Vercel project (Production) and redeploy the frontend.
+
+Redeploys after that: push to `main` and run the **deploy-azure** GitHub Action (needs the `AZURE_WEBAPP_PUBLISH_PROFILE` repo secret — see [`.github/workflows/deploy-azure.yml`](.github/workflows/deploy-azure.yml)). A [`backend/Dockerfile`](backend/Dockerfile) is included as a container alternative (Azure App Service for Containers or Azure Container Apps with `min-replicas 1`).
 
 ## Roadmap (architected, not yet built)
 

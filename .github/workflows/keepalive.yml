@@ -1,11 +1,12 @@
 name: keep-alive
 
-# Pings the Render free-tier backend so it doesn't sleep (it idles out after
-# ~15 min). GitHub's cron is best-effort and often runs late, so this is a
-# helper, NOT a guarantee — for judging day also set up an external monitor
-# (e.g. UptimeRobot on https://codoctor-api.onrender.com/health every 5 min),
-# which is more punctual. Note: this only prevents *sleep*; a Render restart
-# still clears the in-memory live sessions.
+# Health monitor for the Azure App Service backend. With "Always On" enabled
+# (B1 plan or higher) the app never sleeps, so this is NOT needed to prevent a
+# cold start — it's a lightweight uptime check that surfaces an outage early.
+# If you deploy to the free F1 tier (no Always On), this also serves as a
+# best-effort keep-warm ping, though GitHub cron is late-prone; for judging day
+# add an external monitor (e.g. UptimeRobot on /health every 5 min).
+# Update the URL below if your app name differs from "codoctor-api".
 
 on:
   schedule:
@@ -16,11 +17,11 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Wake the backend
+      - name: Check backend health
         run: |
           for i in 1 2 3; do
-            code=$(curl -fsS -o /dev/null -w "%{http_code}" --max-time 90 \
-              https://codoctor-api.onrender.com/health) && { echo "health: $code"; exit 0; }
+            code=$(curl -fsS -o /dev/null -w "%{http_code}" --max-time 30 \
+              https://codoctor-api-afdkbhe8d4bpffb5.centralindia-01.azurewebsites.net/health) && { echo "health: $code"; exit 0; }
             echo "attempt $i failed, retrying in 20s..."; sleep 20
           done
           echo "backend did not respond"; exit 1

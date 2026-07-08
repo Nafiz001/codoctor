@@ -318,7 +318,7 @@ export default function LivePage() {
                   Running retrieve → tools → critic → synthesize…
                 </p>
                 <p className="mt-1 text-[11px] text-ink-faint">
-                  A sleeping free-tier backend can take ~30s to wake the first time.
+                  Grounded retrieval and the safety engines run server-side.
                 </p>
               </div>
             )}
@@ -331,7 +331,7 @@ export default function LivePage() {
                 </div>
                 <p className="mt-2 text-sm text-ink-muted">
                   {API_URL
-                    ? "The free-tier server may be waking up — try again in ~30 seconds."
+                    ? "Something went wrong reaching the backend — try again in a moment."
                     : "Backend URL is not configured for this build."}
                 </p>
                 <button onClick={analyze} className="btn-secondary mt-4">

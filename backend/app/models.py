@@ -138,3 +138,33 @@ class SessionAnalyzeRequest(BaseModel):
     proposed_meds: list[str] = Field(
         default_factory=list, description="Drug(s) the doctor intends to prescribe."
     )
+
+
+# --- AI feature endpoints --------------------------------------------------
+
+
+class LivePromptRequest(BaseModel):
+    """A partial transcript mid-consultation → the next guideline questions."""
+
+    transcript: str = Field(..., description="The conversation so far (Bangla/English).")
+    age_months: Optional[int] = Field(None, description="Child age in months, if known.")
+
+
+class DoseRequest(BaseModel):
+    drug: str = Field(..., description="Generic drug name, e.g. 'Amoxicillin'.")
+    weight_kg: Optional[float] = Field(None, ge=0, le=150, description="Child weight in kg.")
+    age_months: Optional[int] = Field(None, ge=0, le=216)
+
+
+class ReconcileRequest(BaseModel):
+    proposed: list[str] = Field(default_factory=list)
+    allergies: list[str] = Field(default_factory=list)
+    current_meds: list[str] = Field(default_factory=list)
+    past_meds: list[str] = Field(default_factory=list, description="Meds from previous reports.")
+
+
+class RREstimateRequest(BaseModel):
+    """A per-frame breathing signal from the phone camera."""
+
+    samples: list[float] = Field(..., description="Per-frame chest brightness/motion values.")
+    fps: float = Field(..., gt=0, le=120, description="Frames per second of the samples.")

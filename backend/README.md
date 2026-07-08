@@ -94,7 +94,7 @@ pytest
 Built so far: the deterministic safety core, the agentic RAG orchestrator,
 **dual-device transcript fusion** (`app/asr/fusion.py`), and a **deterministic
 Scribe** extractor (`app/asr/scribe.py`), and **Differential + Completeness**
-agent nodes — all deployed on Render and wired to the frontend. Next:
+agent nodes — all deployed on Azure App Service (Always On) and wired to the frontend. Next:
 
 - **Cloud Bengali ASR** provider to produce the raw per-device transcripts (the fusion + Scribe around it are done and keyless)
 - Swap the dense retriever for **BGE-M3**; expand the corpus beyond the ARI golden path

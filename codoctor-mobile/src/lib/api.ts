@@ -1,7 +1,7 @@
 // Codoctor API client — adapted from the web app for React Native fetch
 // Falls back to scripted demo mode when the backend is unavailable
 
-export const API_URL = 'https://codoctor-api.onrender.com';
+export const API_URL = 'https://codoctor-api-afdkbhe8d4bpffb5.centralindia-01.azurewebsites.net';
 
 export interface Citation {
   source: string;
@@ -47,9 +47,18 @@ export interface DifferentialItem {
   citation: Citation;
 }
 
+export interface MissingDatum {
+  field: string;
+  en: string;
+  bn: string;
+  citation?: Citation;
+}
+
 export interface ConsultResult {
   grounded: boolean;
   refused: boolean;
+  confidence?: 'high' | 'moderate' | 'low' | 'insufficient';
+  missing_data?: MissingDatum[];
   answer_bn: string;
   answer_en: string;
   citations: Citation[];
@@ -134,6 +143,48 @@ export async function transcribeAudio(
 
 export function warmBackend(): void {
   fetch(`${API_URL}/health`).catch(() => {});
+}
+
+export interface ReportExtract {
+  conditions: string[];
+  medications: string[];
+  allergies: string[];
+  summary_en: string;
+  summary_bn: string;
+  source: string;
+}
+
+/**
+ * Upload a previous medical report (photo or PDF) so the backend can extract
+ * conditions / medications / allergies to inform the consultation.
+ * Returns null on any failure (no key, unreadable file, network) so the caller
+ * can carry on without the report.
+ */
+export async function extractReport(
+  uri: string,
+  mimeType = 'image/jpeg',
+  name = 'report.jpg'
+): Promise<ReportExtract | null> {
+  if (!API_URL) return null;
+  try {
+    const formData = new FormData();
+    formData.append('file', { uri, name, type: mimeType } as unknown as Blob);
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), 60000);
+    try {
+      const res = await fetch(`${API_URL}/extract-report`, {
+        method: 'POST',
+        body: formData,
+        signal: ctrl.signal,
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as ReportExtract;
+    } finally {
+      clearTimeout(id);
+    }
+  } catch {
+    return null;
+  }
 }
 
 export async function createSession(patient: {
@@ -223,6 +274,59 @@ export async function resetSession(sid: string): Promise<SessionState | null> {
   return withTimeout<SessionState>(
     `${API_URL}/session/${sid}/reset`,
     { method: 'POST', headers: jsonHeaders },
+    12000
+  );
+}
+
+// ── New AI-feature clients ───────────────────────────────────────────────────
+
+export interface LivePrompts {
+  ask_these: MissingDatum[];
+  red_flags: { title: string; detail: string; citation?: Citation }[];
+  extracted: Record<string, unknown>;
+}
+
+/** Real-time co-pilot: partial transcript → next guideline questions + red flags. */
+export async function livePrompts(
+  transcript: string,
+  ageMonths?: number,
+  allergies: string[] = [],
+  currentMeds: string[] = []
+): Promise<LivePrompts | null> {
+  return withTimeout<LivePrompts>(
+    `${API_URL}/consult/live-prompts`,
+    {
+      method: 'POST', headers: jsonHeaders,
+      body: JSON.stringify({ transcript, age_months: ageMonths, allergies, current_meds: currentMeds }),
+    },
+    12000
+  );
+}
+
+export interface ReconcileResult {
+  findings: MedFinding[];
+  notes: { type: string; severity: string; reason: string; citation?: Citation }[];
+  blocked: boolean;
+}
+
+/** Reconcile a proposed prescription against current + previous-report meds. */
+export async function reconcileMeds(payload: {
+  proposed: string[]; allergies?: string[]; current_meds?: string[]; past_meds?: string[];
+}): Promise<ReconcileResult | null> {
+  return withTimeout<ReconcileResult>(
+    `${API_URL}/assess/reconcile`,
+    { method: 'POST', headers: jsonHeaders, body: JSON.stringify(payload) },
+    12000
+  );
+}
+
+export interface RrEstimate { ok: boolean; rr: number | null; confidence: number; reason?: string; note?: string }
+
+/** Estimate breaths/min from a per-frame chest breathing signal. */
+export async function estimateRR(samples: number[], fps: number): Promise<RrEstimate | null> {
+  return withTimeout<RrEstimate>(
+    `${API_URL}/estimate-rr`,
+    { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ samples, fps }) },
     12000
   );
 }
