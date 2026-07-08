@@ -49,9 +49,12 @@ function speechText(s: PatientSummary): string {
   ].join(" ");
 }
 
-/** Build a standalone, printable HTML record and download it to the device, so
- *  the patient keeps their own copy — "the record stays with you." */
-function downloadRecord(s: PatientSummary): void {
+/** Build the patient's health record and download it as a one-tap PDF, so they
+ *  keep their own copy — "the record stays with you." Rendered from an offscreen,
+ *  scoped element (styles are prefixed with `.cdoc-rec` so the live app is never
+ *  restyled while the capture runs) via html2pdf (html2canvas + jsPDF), which
+ *  rasterizes the DOM so Bangla renders exactly as the browser draws it. */
+async function downloadRecord(s: PatientSummary): Promise<void> {
   const esc = (x: string) =>
     x.replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m] as string));
   const danger = s.dangerSignsBn
@@ -65,14 +68,19 @@ function downloadRecord(s: PatientSummary): void {
   const cites = (s.citations || [])
     .map((c) => `<li>${esc(c.source)} — ${esc(c.ref)}</li>`)
     .join("");
-  const html = `<!doctype html><html lang="bn"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Codoctor — আপনার স্বাস্থ্য রেকর্ড</title>
-<style>body{font-family:system-ui,'Noto Sans Bengali',Arial,sans-serif;max-width:640px;margin:24px auto;padding:0 16px;line-height:1.6;color:#1c1917}
-h1{font-size:20px;margin:0}h2{font-size:14px;margin:18px 0 4px;color:#9F4E2E;text-transform:uppercase;letter-spacing:.04em}
-.box{border:1px solid #e7e5e4;border-radius:12px;padding:12px 16px;margin:10px 0}
-.danger{border-color:#fca5a5;background:#fef2f2}.en{color:#78716c}small{color:#78716c}ul{margin:6px 0;padding-left:18px}</style></head>
-<body>
+
+  const wrap = document.createElement("div");
+  wrap.className = "cdoc-rec";
+  // Off-screen but fully laid out so html2canvas can rasterize it.
+  wrap.style.cssText = "position:fixed;left:-10000px;top:0;width:640px;";
+  wrap.innerHTML = `<style>
+.cdoc-rec{font-family:system-ui,'Noto Sans Bengali','Hind Siliguri',Arial,sans-serif;width:640px;padding:24px;line-height:1.6;color:#1c1917;background:#ffffff;box-sizing:border-box}
+.cdoc-rec h1{font-size:20px;margin:0}
+.cdoc-rec h2{font-size:14px;margin:18px 0 4px;color:#9F4E2E;text-transform:uppercase;letter-spacing:.04em}
+.cdoc-rec .box{border:1px solid #e7e5e4;border-radius:12px;padding:12px 16px;margin:10px 0}
+.cdoc-rec .danger{border-color:#fca5a5;background:#fef2f2}
+.cdoc-rec .en{color:#78716c}.cdoc-rec small{color:#78716c}.cdoc-rec ul{margin:6px 0;padding-left:18px}
+</style>
 <h1>Codoctor — আপনার স্বাস্থ্য রেকর্ড</h1>
 <small>Advisory only · ডাক্তারের পরামর্শের বিকল্প নয়</small>
 <div class="box"><h2>রোগ নির্ণয় · Condition</h2><b>${esc(s.conditionBn)}</b><br><span class="en">${esc(
@@ -85,17 +93,29 @@ h1{font-size:20px;margin:0}h2{font-size:14px;margin:18px 0 4px;color:#9F4E2E;tex
     s.medsEn
   )}</span></div>
 <div class="box danger"><h2>বিপদের লক্ষণ · Danger signs</h2><ul>${danger}</ul></div>
-${cites ? `<div class="box"><h2>Based on</h2><ul>${cites}</ul></div>` : ""}
-</body></html>`;
-  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "codoctor-health-record.html";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+${cites ? `<div class="box"><h2>Based on</h2><ul>${cites}</ul></div>` : ""}`;
+  document.body.appendChild(wrap);
+
+  try {
+    const html2pdf = (await import("html2pdf.js")).default as (
+      ...args: unknown[]
+    ) => {
+      set: (o: unknown) => { from: (el: HTMLElement) => { save: () => Promise<void> } };
+    };
+    await html2pdf()
+      .set({
+        margin: [10, 10, 10, 10],
+        filename: "codoctor-health-record.pdf",
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        pagebreak: { mode: ["css", "legacy"] },
+      })
+      .from(wrap)
+      .save();
+  } finally {
+    wrap.remove();
+  }
 }
 
 export default function PatientPage() {
@@ -479,6 +499,7 @@ function SummaryScreen({
   mode: "demo" | "live";
 }) {
   const [speaking, setSpeaking] = useState(false);
+  const [savingPdf, setSavingPdf] = useState(false);
   const [showEn, setShowEn] = useState(false);
   const [canSpeak, setCanSpeak] = useState(false);
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
@@ -712,12 +733,31 @@ function SummaryScreen({
         )}
 
         <button
-          onClick={() => downloadRecord(summary)}
-          className="flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-bold text-ink-soft shadow-soft ring-1 ring-inset ring-slate-200 transition hover:ring-brand-300"
+          onClick={async () => {
+            if (savingPdf) return;
+            setSavingPdf(true);
+            try {
+              await downloadRecord(summary);
+            } finally {
+              setSavingPdf(false);
+            }
+          }}
+          disabled={savingPdf}
+          className="flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-bold text-ink-soft shadow-soft ring-1 ring-inset ring-slate-200 transition hover:ring-brand-300 disabled:opacity-60"
         >
-          <Download className="h-4 w-4 text-brand-600" />
-          <span className="bn">রেকর্ড সংরক্ষণ করুন</span>
-          <span className="font-medium text-ink-muted">Save record</span>
+          {savingPdf ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin text-brand-600" />
+              <span className="bn">পিডিএফ তৈরি হচ্ছে…</span>
+              <span className="font-medium text-ink-muted">Preparing PDF…</span>
+            </>
+          ) : (
+            <>
+              <Download className="h-4 w-4 text-brand-600" />
+              <span className="bn">রেকর্ড সংরক্ষণ করুন (PDF)</span>
+              <span className="font-medium text-ink-muted">Save record</span>
+            </>
+          )}
         </button>
 
         <div className="flex items-start gap-2 rounded-xl bg-white p-4 text-xs text-ink-muted ring-1 ring-inset ring-slate-200">
