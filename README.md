@@ -3,6 +3,7 @@
 
 > A second pair of ears in the consultation room. A patient scans a QR to join the doctor's live session; both phones listen in Bangla; the two transcripts are fused into one; a team of agents — grounded in official clinical guidelines, **with citations** — makes sure no danger sign or drug interaction is missed. The high-stakes calls are made by **deterministic rule engines, never the LLM**. The patient walks out with a plain-Bangla spoken summary they keep.
 
+
 **Built for the SciBlitz AI Challenge 2026 — IEEE Student Branch, CUET · Track A (Health & Society).**
 
 🔗 **Live (no login):** https://codoctor.vercel.app — open `/room` in **Chrome/Edge** and click **Run demo consultation**.
