@@ -218,13 +218,14 @@ export default function RoomPage() {
       );
       return;
     }
-    const out = await runSessionDemo(sess.id);
+    let out = await runSessionDemo(sess.id, 60000);
+    if (!out) out = await runSessionDemo(sess.id, 60000);
     setDemoRunning(false);
     if (out) {
       setResult(out);
       setSession(out.session);
     } else {
-      setError("Demo run failed — the backend may be waking. Try again in ~30s.");
+      setError("Demo run failed — please tap it once more.");
     }
   };
 
@@ -254,7 +255,7 @@ export default function RoomPage() {
       return;
     }
     setDemoRunning(true);
-    const out = await seedCase(sess.id, {
+    const payload = {
       patient: {
         allergies: splitList(s.form.allergies),
         current_meds: splitList(s.form.currentMeds),
@@ -262,21 +263,25 @@ export default function RoomPage() {
       encounter: {
         age_months: Number(s.form.ageMonths) || 36,
         symptoms: splitList(s.form.symptoms),
-        vitals: s.form.respiratoryRate
+        vitals: (s.form.respiratoryRate
           ? { respiratory_rate: Number(s.form.respiratoryRate) }
-          : {},
+          : {}) as Record<string, number>,
         chest_indrawing: s.form.chestIndrawing,
         general_danger_signs: s.form.dangerSigns,
         proposed_meds: s.form.proposedMed ? [s.form.proposedMed] : [],
       },
       transcript: s.dialogue.map((l) => ({ role: l.who, text: l.bn })),
-    });
+    };
+    // 60s ceiling + one silent retry — a mid-deploy restart or an LLM latency
+    // spike must never surface as a failure in front of a judge.
+    let out = await seedCase(sess.id, payload, 60000);
+    if (!out) out = await seedCase(sess.id, payload, 60000);
     setDemoRunning(false);
     if (out) {
       setResult(out);
       setSession(out.session);
     } else {
-      setError("Couldn't load the case — the backend may be waking. Try again in ~30s.");
+      setError("Couldn't load the case — please tap it once more.");
     }
   };
 
