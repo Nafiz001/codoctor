@@ -1,6 +1,6 @@
 # Codoctor — backend
 
-The deterministic, provable core of Codoctor: the rule engines that make the
+The deterministic , provable core of Codoctor: the rule engines that make the
 high-stakes calls (danger signs, drug safety) so the LLM never has to. This is
 what backs the two "catches" in the [doctor demo](https://codoctor.vercel.app/doctor).
 
