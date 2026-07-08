@@ -1,12 +1,13 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Volume2,
   Square,
   ArrowLeft,
+  ArrowRight,
   HeartPulse,
   Hospital,
   Pill,
@@ -19,6 +20,8 @@ import {
   ScrollText,
   Radio,
   Download,
+  QrCode,
+  KeyRound,
 } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { cn } from "@/lib/utils";
@@ -105,9 +108,91 @@ export default function PatientPage() {
 function PatientInner() {
   const params = useSearchParams();
   const sid = params.get("s");
-  // No session id → the original scripted demo (kept intact).
-  if (!sid) return <SummaryScreen summary={PATIENT_SUMMARY as PatientSummary} mode="demo" />;
+  // No session id → let the patient join by code or QR (or view a sample).
+  if (!sid) return <JoinScreen />;
   return <LiveSession sid={sid} />;
+}
+
+/* -------------------------------------------------------------- join screen */
+
+function JoinScreen() {
+  const router = useRouter();
+  const [code, setCode] = useState("");
+  const [showSample, setShowSample] = useState(false);
+
+  if (showSample) {
+    return <SummaryScreen summary={PATIENT_SUMMARY as PatientSummary} mode="demo" />;
+  }
+
+  const join = () => {
+    const c = code.trim().toUpperCase();
+    if (c) router.push(`/patient?s=${encodeURIComponent(c)}`);
+  };
+
+  return (
+    <Shell>
+      <div className="space-y-6 px-4 py-8">
+        <div className="text-center">
+          <div className="bn text-xs font-semibold uppercase tracking-wide text-brand-600">
+            রোগীর মোড
+          </div>
+          <h1 className="bn mt-1 text-2xl font-bold text-ink">আপনার ভিজিটে যোগ দিন</h1>
+          <p className="mt-1 text-sm text-ink-muted">Join your visit</p>
+        </div>
+
+        {/* Option 1 — scan the QR */}
+        <div className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-200">
+          <div className="flex items-center gap-2 font-semibold text-ink">
+            <QrCode className="h-4 w-4 text-brand-500" /> Scan the QR
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+            Point your phone camera at the QR code the doctor shows. It opens this
+            page and joins you automatically.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-slate-200" />
+          <span className="text-xs font-medium text-ink-faint">OR</span>
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        {/* Option 2 — type the code */}
+        <div className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-200">
+          <div className="flex items-center gap-2 font-semibold text-ink">
+            <KeyRound className="h-4 w-4 text-brand-500" /> Enter the session code
+          </div>
+          <p className="mt-2 text-sm text-ink-muted">
+            The doctor&apos;s screen shows a 5-character code (e.g. FEU76).
+          </p>
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase().replace(/\s/g, ""))}
+            onKeyDown={(e) => e.key === "Enter" && join()}
+            placeholder="FEU76"
+            maxLength={8}
+            autoCapitalize="characters"
+            autoCorrect="off"
+            className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center font-mono text-2xl font-bold uppercase tracking-[0.3em] text-ink outline-none focus:border-brand-400"
+          />
+          <button
+            onClick={join}
+            disabled={!code.trim()}
+            className="btn-primary mt-3 w-full disabled:opacity-50"
+          >
+            Join visit <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        <button
+          onClick={() => setShowSample(true)}
+          className="w-full text-center text-sm font-medium text-ink-muted underline-offset-2 hover:underline"
+        >
+          Or view a sample record
+        </button>
+      </div>
+    </Shell>
+  );
 }
 
 /* ------------------------------------------------------------ live session */

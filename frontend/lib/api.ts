@@ -88,9 +88,18 @@ export interface DoctorAlerts {
   count: number;
 }
 
+export interface MissingDatum {
+  field: string;
+  en: string;
+  bn: string;
+  citation?: Citation;
+}
+
 export interface ConsultResult {
   grounded: boolean;
   refused: boolean;
+  confidence?: "high" | "moderate" | "low" | "insufficient";
+  missing_data?: MissingDatum[];
   answer_bn: string;
   answer_en: string;
   citations: Citation[];
@@ -373,6 +382,139 @@ export async function resetSession(sid: string): Promise<SessionState | null> {
     );
     if (!res.ok) return null;
     return (await res.json()) as SessionState;
+  } catch {
+    return null;
+  }
+}
+
+export interface LiveTranscript {
+  fused: FusedSegment[];
+  counts: { doctor: number; patient: number };
+  recovered_count: number;
+}
+
+/** Fuse both devices' live transcripts for real-time display on the doctor screen. */
+export async function getLiveTranscript(sid: string): Promise<LiveTranscript | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(`${API_URL}/session/${sid}/live-transcript`, {}, 10000);
+    if (!res.ok) return null;
+    return (await res.json()) as LiveTranscript;
+  } catch {
+    return null;
+  }
+}
+
+// --- New AI-feature clients (parity with the mobile app) -------------------
+
+export interface ReportExtract {
+  conditions: string[];
+  medications: string[];
+  allergies: string[];
+  summary_en: string;
+  summary_bn: string;
+  source: string;
+}
+
+/** Upload a previous report (image/PDF) → structured history via OpenAI vision. */
+export async function extractReport(file: File): Promise<ReportExtract | null> {
+  if (!API_URL) return null;
+  try {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await withTimeout(
+      `${API_URL}/extract-report`,
+      { method: "POST", body: form },
+      60000
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as ReportExtract;
+  } catch {
+    return null;
+  }
+}
+
+export interface DoseResult {
+  known: boolean;
+  drug: string;
+  need_weight?: boolean;
+  per_dose_mg?: [number, number];
+  frequency_per_day?: number;
+  max_daily_mg?: number;
+  exceeds_max?: boolean;
+  note: string;
+  citation?: Citation;
+}
+
+/** Weight-based paediatric dose for a drug. */
+export async function estimateDose(
+  drug: string,
+  weightKg?: number,
+  ageMonths?: number
+): Promise<DoseResult | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/assess/dose`,
+      { method: "POST", headers: jsonHeaders, body: JSON.stringify({ drug, weight_kg: weightKg, age_months: ageMonths }) },
+      12000
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as DoseResult;
+  } catch {
+    return null;
+  }
+}
+
+export interface ReconcileResult {
+  findings: MedFinding[];
+  notes: { type: string; severity: string; reason: string; citation?: Citation }[];
+  blocked: boolean;
+}
+
+/** Reconcile a proposed prescription against current + previous-report meds. */
+export async function reconcileMeds(payload: {
+  proposed: string[];
+  allergies?: string[];
+  current_meds?: string[];
+  past_meds?: string[];
+}): Promise<ReconcileResult | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/assess/reconcile`,
+      { method: "POST", headers: jsonHeaders, body: JSON.stringify(payload) },
+      12000
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as ReconcileResult;
+  } catch {
+    return null;
+  }
+}
+
+export interface LivePrompts {
+  ask_these: MissingDatum[];
+  red_flags: { title: string; detail: string; citation?: Citation }[];
+  extracted: Record<string, unknown>;
+}
+
+/** Real-time co-pilot: partial transcript → next questions (incl. drug-allergy screening) + red flags. */
+export async function livePrompts(
+  transcript: string,
+  ageMonths?: number,
+  allergies: string[] = [],
+  currentMeds: string[] = []
+): Promise<LivePrompts | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await withTimeout(
+      `${API_URL}/consult/live-prompts`,
+      { method: "POST", headers: jsonHeaders, body: JSON.stringify({ transcript, age_months: ageMonths, allergies, current_meds: currentMeds }) },
+      12000
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as LivePrompts;
   } catch {
     return null;
   }

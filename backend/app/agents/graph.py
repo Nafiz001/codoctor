@@ -24,6 +24,7 @@ from ..safety.medsafety import check_medication
 from .llm import narrate, llm_available
 from .differential import differential as run_differential
 from .completeness import completeness as run_completeness, next_questions
+from ..safety.med_screening import screening_questions
 
 RETRIEVER = HybridRetriever()
 MAX_RETRIEVALS = 2
@@ -45,6 +46,8 @@ class ConsultState(TypedDict, total=False):
     answer_bn: str
     citations: list
     refused: bool
+    confidence: str
+    missing_data: list
     trace: list
 
 
@@ -254,13 +257,17 @@ def _assessment_confidence(enc: dict, imci: dict, missing: list) -> str:
 
 def synthesize(state: ConsultState) -> dict:
     enc = state.get("encounter", {}) or {}
+    patient = state.get("patient", {}) or {}
     safety = state.get("safety", {}) or {}
     retrieved = state.get("retrieved", [])
     completeness = state.get("completeness", {}) or {}
     imci = safety.get("imci", {})
     meds = safety.get("medication", [])
 
-    missing = next_questions(enc)
+    # IMCI assessment gaps + "ask before you prescribe" medication screening.
+    missing = next_questions(enc) + screening_questions(
+        enc.get("proposed_meds", []), patient.get("allergies"), patient.get("current_meds")
+    )
     confidence = _assessment_confidence(enc, imci, missing)
 
     has_data = bool(
