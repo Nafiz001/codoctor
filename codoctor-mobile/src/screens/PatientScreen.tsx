@@ -17,8 +17,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, fontSize, radius, spacing, shadow } from '../lib/theme';
-import { API_URL, joinSession, getSession, appendTranscript, type SessionState, type PatientSummary, type ReportExtract } from '../lib/api';
-import { useChunkedRecording } from '../lib/useRecording';
+import { joinSession, getSession, appendTranscript, type SessionState, type PatientSummary, type ReportExtract } from '../lib/api';
+import { useNativeDictation } from '../lib/useNativeDictation';
 import { captureReportPhoto, pickReportImage, pickReportPdf } from '../lib/pickReport';
 import TopAppBar from '../components/TopAppBar';
 import type { RootStackParamList } from '../../App';
@@ -54,12 +54,10 @@ export default function PatientScreen({ navigation: navProp }: Props) {
     await appendTranscript(sid, 'patient', text, conf);
   }, []);
 
-  const patientRecording = useChunkedRecording({
+  const patientRecording = useNativeDictation({
     onTranscript,
     onError: (msg) => Alert.alert('Recording error', msg),
-    transcribeUrl: `${API_URL}/transcribe`,
-    chunkDurationMs: 8000,
-    language: 'bn',
+    language: 'bn-BD',
   });
 
   // Pulsing dot for recording indicator

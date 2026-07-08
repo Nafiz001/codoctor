@@ -22,14 +22,14 @@ import { CitationBadge } from '../components/CitationBadge';
 import RrCounter from '../components/RrCounter';
 import TopAppBar from '../components/TopAppBar';
 import {
-  API_URL, createSession, joinSession, getSession, analyzeSession, resetSession,
+  createSession, joinSession, getSession, analyzeSession, resetSession,
   warmBackend, appendTranscript, livePrompts, reconcileMeds,
   type SessionState, type SessionAnalyzeResult, type ReportExtract,
   type ImciResult, type MedFinding, type DifferentialItem, type PatientSummary,
   type MissingDatum, type LivePrompts, type ReconcileResult,
 } from '../lib/api';
 import { classifyAri, checkMedication, dose, offlineSummary } from '../lib/clinical';
-import { useChunkedRecording } from '../lib/useRecording';
+import { useNativeDictation } from '../lib/useNativeDictation';
 import { shareConsult } from '../lib/share';
 import { captureReportPhoto, pickReportImage, pickReportPdf } from '../lib/pickReport';
 import type { RootStackParamList } from '../../App';
@@ -112,7 +112,7 @@ export default function DoctorConsultScreen({ navigation }: Props) {
     if (phase !== 'recording' || offline || heard.length === 0) return;
     let stop = false;
     const tick = async () => {
-      const p = await livePrompts(heard.join(' '), age);
+      const p = await livePrompts(heard.join(' '), age, splitList(allergies), splitList(currentMeds));
       if (!stop && p) setPrompts(p);
     };
     void tick();
@@ -127,9 +127,11 @@ export default function DoctorConsultScreen({ navigation }: Props) {
     if (sid) await appendTranscript(sid, 'doctor', text, conf);
   }, []);
 
-  const recording = useChunkedRecording({
-    onTranscript, onError: (m) => Alert.alert('Recording error', m),
-    transcribeUrl: `${API_URL}/transcribe`, chunkDurationMs: 8000, language: 'bn',
+  const recording = useNativeDictation({
+    onTranscript,
+    onError: (m) => Alert.alert('Recording error', m),
+    language: 'bn-BD',
+    contextualStrings: ['নিউমোনিয়া', 'শ্বাসকষ্ট', 'জ্বর', 'কাশি', 'অ্যামোক্সিসিলিন', 'প্যারাসিটামল'],
   });
 
   // ── attach previous report ───────────────────────────────────────────────────

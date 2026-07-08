@@ -287,10 +287,18 @@ export interface LivePrompts {
 }
 
 /** Real-time co-pilot: partial transcript → next guideline questions + red flags. */
-export async function livePrompts(transcript: string, ageMonths?: number): Promise<LivePrompts | null> {
+export async function livePrompts(
+  transcript: string,
+  ageMonths?: number,
+  allergies: string[] = [],
+  currentMeds: string[] = []
+): Promise<LivePrompts | null> {
   return withTimeout<LivePrompts>(
     `${API_URL}/consult/live-prompts`,
-    { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ transcript, age_months: ageMonths }) },
+    {
+      method: 'POST', headers: jsonHeaders,
+      body: JSON.stringify({ transcript, age_months: ageMonths, allergies, current_meds: currentMeds }),
+    },
     12000
   );
 }
