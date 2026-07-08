@@ -30,6 +30,7 @@ import {
   ClipboardList,
   Upload,
   FileText,
+  Zap,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { TONES } from "@/components/tone";
@@ -568,8 +569,22 @@ export default function RoomPage() {
             </div>
 
             <div className="card p-5">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-brand-600">
-                <Pill className="h-3.5 w-3.5" /> Clinical context
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-brand-600">
+                  <Pill className="h-3.5 w-3.5" /> Clinical context
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAllergies("Penicillin");
+                    setCurrentMeds("Salbutamol");
+                    setAgeMonths("36");
+                    setProposedMed("Amoxicillin");
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-1 text-[11px] font-semibold text-brand-700 ring-1 ring-inset ring-brand-200 hover:bg-brand-100"
+                >
+                  <Zap className="h-3 w-3" /> Quick fill
+                </button>
               </div>
               <p className="mt-2 text-xs text-ink-faint">
                 The patient can fill this on their phone — or confirm what the mic
