@@ -7,11 +7,13 @@
     "@react-navigation/native": "^7.3.4",
     "@react-navigation/stack": "^7.10.6",
     "expo": "~54.0.0",
+    "expo-asset": "~12.0.13",
     "expo-audio": "~1.1.1",
     "expo-blur": "~15.0.8",
     "expo-camera": "~17.0.10",
     "expo-dev-client": "~6.0.21",
     "expo-document-picker": "~14.0.8",
+    "expo-font": "~14.0.12",
     "expo-image-picker": "~17.0.11",
     "expo-speech": "~14.0.8",
     "expo-speech-recognition": "3.1.3",
@@ -35,9 +37,7 @@
     "web": "expo start --web"
   },
   "overrides": {
-    "expo-asset": "12.0.13",
     "expo-constants": "18.0.13",
-    "expo-font": "14.0.12",
     "expo-file-system": "19.0.23"
   },
   "private": true
