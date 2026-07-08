@@ -55,9 +55,12 @@ def next_questions(encounter: Dict) -> list:
 def completeness(encounter: Dict) -> Dict:
     vitals = encounter.get("vitals") or {}
     symptoms = set(encounter.get("symptoms", []) or [])
-    respiratory = bool(symptoms & {"fast_breathing", "cough"}) or (
-        vitals.get("respiratory_rate") is not None
-    )
+    # A sick child with fever alone still warrants the same bedside checks —
+    # IMCI has the clinician count breaths and screen danger signs for any
+    # febrile/respiratory presentation, so the checklist fires for fever too.
+    respiratory = bool(
+        symptoms & {"fast_breathing", "cough", "fever", "difficulty_breathing"}
+    ) or (vitals.get("respiratory_rate") is not None)
 
     positive = {
         "respiratory_rate": vitals.get("respiratory_rate") is not None,

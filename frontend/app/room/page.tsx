@@ -173,21 +173,25 @@ export default function RoomPage() {
     dictation.stop();
     setAnalyzing(true);
     setError(null);
-    const out = await analyzeSession(session.id, {
+    const payload = {
       patient: {
         allergies: splitList(allergies),
         current_meds: splitList(currentMeds),
       },
       age_months: Number(ageMonths) || 36,
       proposed_meds: splitList(proposedMed),
-    });
+    };
+    // Generous timeout (LLM narration can be slow) + one automatic retry so a
+    // single transient blip doesn't surface as a failure mid-demo.
+    let out = await analyzeSession(session.id, payload, 60000);
+    if (!out) out = await analyzeSession(session.id, payload, 60000);
     setAnalyzing(false);
     if (out) {
       setResult(out);
       setSession(out.session);
     } else {
       setError(
-        "Analysis failed — make sure some speech was captured, then try again."
+        "The backend didn't respond in time — it may be busy. Tap Analyze again."
       );
     }
   };

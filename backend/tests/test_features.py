@@ -118,6 +118,13 @@ def test_screening_none_for_plain_drug():
     assert screening_questions(["Paracetamol"], [], []) == []
 
 
+def test_next_questions_fires_for_fever_only():
+    # A febrile child with no cough mentioned still gets the bedside checklist.
+    enc = {"age_months": 36, "symptoms": ["fever"], "vitals": {}}
+    fields = {q["field"] for q in next_questions(enc)}
+    assert "respiratory_rate" in fields and "danger_signs" in fields
+
+
 def test_next_questions_empty_when_complete():
     enc = {
         "age_months": 36, "symptoms": ["cough"],
